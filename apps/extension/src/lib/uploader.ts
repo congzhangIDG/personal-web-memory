@@ -6,7 +6,8 @@ const DEFAULT_API_BASE = "http://localhost:3000";
 
 async function getApiBase(): Promise<string> {
   const settings = await db.settings.get("singleton");
-  return settings?.apiBaseUrl ?? DEFAULT_API_BASE;
+  const raw = settings?.apiBaseUrl ?? DEFAULT_API_BASE;
+  return raw.replace(/\/+$/, "");
 }
 
 async function getSettings() {
@@ -41,11 +42,7 @@ export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
 
     const data = (await res.json()) as UploadDigestResponse;
     if (data.ok) {
-      // 更新本地设置
-      await db.settings.put({
-        id: "singleton",
-        enabled: settings?.enabled ?? true,
-        apiBaseUrl: settings?.apiBaseUrl,
+      await db.settings.update("singleton", {
         lastUploadedDate: digest.date,
       });
       return true;

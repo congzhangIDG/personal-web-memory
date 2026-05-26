@@ -66,7 +66,19 @@ export async function buildDailyDigest(
   // upsert
   await db.digests.put(digest);
 
-  return digest;
+  // 附带 pages 详情供后端存储（UploadDigestRequest 的 pages 字段）
+  const pagesPayload = pages.map((p) => ({
+    url: p.url,
+    title: p.title,
+    domain: p.domain,
+    visitedAt: p.visitedAt,
+    durationMs: p.durationMs ?? 0,
+    summary: "",
+    topics: [] as string[],
+    favorited: false,
+  }));
+
+  return { ...digest, pages: pagesPayload };
 }
 
 /**

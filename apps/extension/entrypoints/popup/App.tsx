@@ -14,14 +14,16 @@ const TABS: { id: Tab; label: string }[] = [
 
 type FormState = Omit<Settings, "id">;
 
+const DEFAULT_BLACKLIST = ["localhost", "127.0.0.1", "192.168.106.16"];
+
 const defaultForm: FormState = {
   enabled: true,
-  apiBaseUrl: "http://127.0.0.1:3000/",
+  apiBaseUrl: "http://127.0.0.1:3000",
   lastUploadedDate: undefined,
-  llmBaseUrl: "",
-  llmModel: "",
-  llmApiKey: "",
-  blacklist: [],
+  llmBaseUrl: "https://openrouter.idgcapital.com/v1",
+  llmModel: "large",
+  llmApiKey: "EMPTY",
+  blacklist: DEFAULT_BLACKLIST,
   uploadIntervalMin: 5,
   minDurationSec: 5,
   recordIncognito: false,
@@ -39,16 +41,16 @@ function App() {
     async function loadSettings() {
       const s = await db.settings.get("singleton");
       setForm({
-        enabled: s?.enabled ?? true,
-        apiBaseUrl: s?.apiBaseUrl ?? "http://127.0.0.1:3000/",
+        enabled: s?.enabled ?? defaultForm.enabled,
+        apiBaseUrl: s?.apiBaseUrl ?? defaultForm.apiBaseUrl,
         lastUploadedDate: s?.lastUploadedDate,
-        llmBaseUrl: s?.llmBaseUrl ?? "",
-        llmModel: s?.llmModel ?? "",
-        llmApiKey: s?.llmApiKey ?? "",
-        blacklist: s?.blacklist ?? [],
-        uploadIntervalMin: s?.uploadIntervalMin ?? 5,
-        minDurationSec: s?.minDurationSec ?? 5,
-        recordIncognito: s?.recordIncognito ?? false,
+        llmBaseUrl: s?.llmBaseUrl ?? defaultForm.llmBaseUrl,
+        llmModel: s?.llmModel ?? defaultForm.llmModel,
+        llmApiKey: s?.llmApiKey ?? defaultForm.llmApiKey,
+        blacklist: s?.blacklist ?? defaultForm.blacklist,
+        uploadIntervalMin: s?.uploadIntervalMin ?? defaultForm.uploadIntervalMin,
+        minDurationSec: s?.minDurationSec ?? defaultForm.minDurationSec,
+        recordIncognito: s?.recordIncognito ?? defaultForm.recordIncognito,
       });
       setStatus("设置已加载");
     }
