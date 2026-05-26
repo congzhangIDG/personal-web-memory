@@ -7,6 +7,7 @@ import {
   isTracked,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
+import { uploadDigest } from "@/src/lib/uploader";
 
 export default defineBackground(() => {
   // --- tab 激活（切换 tab）---
@@ -67,6 +68,12 @@ export default defineBackground(() => {
     if (alarm.name !== ALARM_NAME) return;
     const dateStr = getYesterdayDateStr();
     const digest = await buildDailyDigest(dateStr);
-    console.log("[PWM] Daily aggregation", dateStr, digest ? "done" : "no data");
+    if (!digest) {
+      console.log("[PWM] Daily aggregation", dateStr, "no data");
+      return;
+    }
+    console.log("[PWM] Daily aggregation", dateStr, "done, uploading...");
+    const ok = await uploadDigest(digest);
+    console.log("[PWM] Upload", dateStr, ok ? "success" : "failed");
   });
 });
