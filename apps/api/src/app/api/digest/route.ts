@@ -7,10 +7,8 @@ import {
   type GetDigestsResponse,
 } from "@pwm/shared";
 
-// 禁止 Next.js build 时预渲染此路由
 export const dynamic = "force-dynamic";
 
-// POST /api/digest — 接收扩展上传的 DailyDigest，upsert 到 SQLite
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = uploadDigestRequestSchema.safeParse(body);
@@ -22,7 +20,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { date, summary, pageCount, totalDurationMs, topDomains } = parsed.data;
+  const { date, summary, pageCount, totalDurationMs, topDomains, topics, pages } = parsed.data;
   const resolvedSummary = summary.trim()
     ? summary.trim()
     : await getDigestSummary({
@@ -30,6 +28,12 @@ export async function POST(req: NextRequest) {
         pageCount,
         totalDurationMs,
         topDomains,
+        pages: pages?.map((p) => ({
+          title: p.title,
+          url: p.url,
+          domain: p.domain,
+          durationMs: p.durationMs ?? 0,
+        })),
       });
 
   await prisma.dailyDigest.upsert({
@@ -40,20 +44,38 @@ export async function POST(req: NextRequest) {
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
+      topics: JSON.stringify(topics ?? []),
     },
     update: {
       summary: resolvedSummary,
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
+      topics: JSON.stringify(topics ?? []),
     },
   });
+
+  if (pages && pages.length > 0) {
+    await prisma.pageVisit.deleteMany({ where: { date } });
+    await prisma.pageVisit.createMany({
+      data: pages.map((p) => ({
+        url: p.url,
+        title: p.title,
+        domain: p.domain,
+        visitedAt: p.visitedAt,
+        durationMs: p.durationMs ?? 0,
+        summary: p.summary ?? "",
+        topics: JSON.stringify(p.topics ?? []),
+        favorited: false,
+        date,
+      })),
+    });
+  }
 
   const res: UploadDigestResponse = { ok: true, date };
   return NextResponse.json(res, { status: 200 });
 }
 
-// GET /api/digest — 返回所有 DailyDigest，按日期倒序
 export async function GET() {
   const rows = await prisma.dailyDigest.findMany({
     orderBy: { date: "desc" },
@@ -65,6 +87,8 @@ export async function GET() {
     pageCount: r.pageCount,
     totalDurationMs: r.totalDurationMs,
     topDomains: JSON.parse(r.topDomains),
+    topics: JSON.parse(r.topics),
+    favorited: r.favorited,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
   }));

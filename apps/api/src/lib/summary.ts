@@ -1,10 +1,18 @@
 import type { DomainStat } from "@pwm/shared";
 
+type PageRef = {
+  title: string;
+  url: string;
+  domain: string;
+  durationMs: number;
+};
+
 type DigestSummaryInput = {
   date: string;
   pageCount: number;
   totalDurationMs: number;
   topDomains: DomainStat[];
+  pages?: PageRef[];
 };
 
 function formatDuration(durationMs: number): string {
@@ -51,13 +59,25 @@ async function generateAiSummary(input: DigestSummaryInput): Promise<string | nu
     )
     .join("\n");
 
+  const pagesSection = input.pages && input.pages.length > 0
+    ? input.pages
+        .slice(0, 10)
+        .map((p, i) => `${i + 1}. [${p.title}](${p.url}) — ${p.domain}，停留 ${formatDuration(p.durationMs)}`)
+        .join("\n")
+    : "无";
+
   const prompt = [
     `日期：${input.date}`,
     `访问页面数：${input.pageCount}`,
     `总活跃时长：${formatDuration(input.totalDurationMs)}`,
     `Top Domains：\n${topDomains || "无"}`,
-    "请基于以上数据，用简体中文生成 80~140 字的每日浏览总结。",
-    "要求：1）自然、克制；2）突出主要关注主题；3）不要编造未给出的具体页面标题。",
+    `主要访问页面：\n${pagesSection}`,
+    "请基于以上数据，用简体中文生成 100~200 字的每日浏览总结。",
+    "要求：",
+    "1）自然、克制；",
+    "2）突出主要关注主题；",
+    "3）在总结中引用相关页面，使用 Markdown 链接格式 [标题](url)；",
+    "4）至少引用 2~5 个最相关的页面链接。",
   ].join("\n\n");
 
   const response = await fetch(`${apiBase}/chat/completions`, {

@@ -41,6 +41,22 @@ export const domainStatSchema = z.object({
 });
 export type DomainStat = z.infer<typeof domainStatSchema>;
 
+// ---------- PageVisit（后端存储的单条页面访问记录） ----------
+
+export const pageVisitSchema = z.object({
+  id: z.number().int().positive().optional(),
+  url: z.string().url(),
+  title: z.string(),
+  domain: z.string().min(1),
+  visitedAt: z.number().int().nonnegative(),
+  durationMs: z.number().int().nonnegative().default(0),
+  summary: z.string().default(""),
+  topics: z.array(z.string()).default([]),
+  favorited: z.boolean().default(false),
+  date: dateStringSchema,
+});
+export type PageVisit = z.infer<typeof pageVisitSchema>;
+
 // ---------- DailyDigest（后端 SQLite 表 + 上传 payload 核心） ----------
 //
 // 注意：DB 内 topDomains 存为 JSON 字符串；网络/内存层用 DomainStat[]。
@@ -57,6 +73,10 @@ export const dailyDigestSchema = z.object({
   totalDurationMs: z.number().int().nonnegative(),
   /** 按业务规则排序后的 domain 聚合（不强制顺序，由生成方决定） */
   topDomains: z.array(domainStatSchema),
+  /** 主题标签列表，如 ["前端开发","AI"] */
+  topics: z.array(z.string()).default([]),
+  /** 是否收藏 */
+  favorited: z.boolean().default(false),
 });
 export type DailyDigest = z.infer<typeof dailyDigestSchema>;
 
@@ -71,13 +91,35 @@ export const settingsSchema = z.object({
   enabled: z.boolean().default(true),
   /** 上次成功上传的日期（YYYY-MM-DD） */
   lastUploadedDate: dateStringSchema.optional(),
+
+  // ---- LLM 配置（扩展端覆盖后端 .env） ----
+  /** OpenAI 兼容 API 地址，如 https://api.openai.com/v1 */
+  llmBaseUrl: z.string().optional(),
+  /** 模型 ID，如 gpt-4o-mini */
+  llmModel: z.string().optional(),
+  /** API Key（明文存储于扩展本地 IndexedDB） */
+  llmApiKey: z.string().optional(),
+
+  // ---- 黑名单 ----
+  // blacklist: 域名或 URL 通配符模式列表
+  blacklist: z.array(z.string()).optional(),
+
+  // ---- 偏好 ----
+  /** 上传间隔（分钟），默认 5 */
+  uploadIntervalMin: z.number().int().positive().optional(),
+  /** 最小记录时长（秒），低于此值不入库，默认 5 */
+  minDurationSec: z.number().int().nonnegative().optional(),
+  /** 是否记录隐身标签页，默认 false */
+  recordIncognito: z.boolean().optional(),
 });
 export type Settings = z.infer<typeof settingsSchema>;
 
 // ---------- API 契约 ----------
 
 /** POST /api/digest 请求体 */
-export const uploadDigestRequestSchema = dailyDigestSchema;
+export const uploadDigestRequestSchema = dailyDigestSchema.extend({
+  pages: z.array(pageVisitSchema.omit({ id: true, date: true })).optional(),
+});
 export type UploadDigestRequest = z.infer<typeof uploadDigestRequestSchema>;
 
 /** POST /api/digest 响应体 */

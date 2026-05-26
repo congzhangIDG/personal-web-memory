@@ -25,6 +25,7 @@ export class PwmDB extends Dexie {
       digests: "date",
       settings: "id",
     });
+    this.version(2).stores({});
   }
 }
 
