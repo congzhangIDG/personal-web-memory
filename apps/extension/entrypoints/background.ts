@@ -3,6 +3,7 @@ import {
   stopTracking,
   resumeTimer,
   pauseAll,
+  flushAll,
   isTracked,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
@@ -30,6 +31,7 @@ async function syncCurrentActiveTab() {
 }
 
 async function generateAndUploadDigest(dateStr: string) {
+  await flushAll();
   const digest = await buildDailyDigest(dateStr);
   if (!digest) {
     return {

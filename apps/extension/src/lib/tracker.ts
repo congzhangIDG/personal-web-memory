@@ -114,6 +114,24 @@ export function pauseAll(): void {
   }
 }
 
+/**
+ * 将所有正在追踪的 tab 的当前累积时长写入 Dexie，但不终止追踪。
+ * 用于聚合前确保 durationMs 已持久化。
+ */
+export async function flushAll(): Promise<void> {
+  for (const [, state] of tracked) {
+    let totalMs = state.accumulatedMs;
+    if (state.activeStart !== null) {
+      const now = Date.now();
+      totalMs += now - state.activeStart;
+      // 重置起点，避免下次重复计算
+      state.activeStart = now;
+    }
+    state.accumulatedMs = totalMs;
+    await db.pages.update(state.recordId, { durationMs: totalMs });
+  }
+}
+
 /** 检查某 tab 是否已在追踪中 */
 export function isTracked(tabId: number): boolean {
   return tracked.has(tabId);

@@ -108,9 +108,11 @@ function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite
 }
 
 export default function Dashboard({ digests, pages, favorites }: Props) {
-  const [tab, setTab] = useState<"digest" | "favorites">("digest");
+  const [tab, setTab] = useState<"timeline" | "topics" | "digest" | "favorites">("timeline");
   const [pageList, setPageList] = useState(pages);
   const [favList, setFavList] = useState(favorites);
+  const [timelinePage, setTimelinePage] = useState(1);
+  const PAGE_SIZE = 20;
 
   const toggleFavorite = async (id: number) => {
     const res = await fetch(`/api/pages/${id}/favorite`, { method: "PATCH" });
@@ -126,20 +128,39 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     }
   };
 
-  const todayDigest = digests[0] ?? null;
-  const todayPages = pageList.filter((p) => p.date === todayDigest?.date);
-
-  const topicCounts: Record<string, number> = {};
-  todayPages.forEach((p) => p.topics.forEach((t) => { topicCounts[t] = (topicCounts[t] || 0) + 1; }));
-  const top5Topics = Object.entries(topicCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
-
+  // 按日期分组
   const groupedByDate: Record<string, PageItem[]> = {};
   pageList.forEach((p) => {
     if (!groupedByDate[p.date]) groupedByDate[p.date] = [];
     groupedByDate[p.date].push(p);
   });
+
+  // 按主题分组（每个主题下按日期再分组）
+  const topicMap: Record<string, PageItem[]> = {};
+  pageList.forEach((p) => {
+    p.topics.forEach((t) => {
+      if (!topicMap[t]) topicMap[t] = [];
+      topicMap[t].push(p);
+    });
+  });
+  const sortedTopics = Object.entries(topicMap).sort((a, b) => b[1].length - a[1].length);
+
+  // 时间线分页
+  const allDates = Object.keys(groupedByDate);
+  const totalTimelinePages = Math.ceil(pageList.length / PAGE_SIZE);
+  const paginatedPages = pageList.slice(0, timelinePage * PAGE_SIZE);
+  const paginatedGrouped: Record<string, PageItem[]> = {};
+  paginatedPages.forEach((p) => {
+    if (!paginatedGrouped[p.date]) paginatedGrouped[p.date] = [];
+    paginatedGrouped[p.date].push(p);
+  });
+
+  const tabs = [
+    { key: "timeline" as const, label: "时间线" },
+    { key: "topics" as const, label: "主题" },
+    { key: "digest" as const, label: "每日总结" },
+    { key: "favorites" as const, label: "我的收藏" },
+  ];
 
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(106,125,255,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(86,211,154,0.12),_transparent_22%),linear-gradient(180deg,_#08101d_0%,_#0b1220_42%,_#111827_100%)] text-white">
@@ -156,94 +177,128 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
         {/* Tabs */}
         <div className="flex gap-1 rounded-xl bg-white/8 p-1 backdrop-blur-md w-fit">
-          <button
-            onClick={() => setTab("digest")}
-            className={`rounded-lg px-5 py-2 text-sm font-medium transition ${tab === "digest" ? "bg-white text-slate-900 shadow" : "text-white/70 hover:text-white"}`}
-          >
-            每日总结
-          </button>
-          <button
-            onClick={() => setTab("favorites")}
-            className={`rounded-lg px-5 py-2 text-sm font-medium transition ${tab === "favorites" ? "bg-white text-slate-900 shadow" : "text-white/70 hover:text-white"}`}
-          >
-            我的收藏
-          </button>
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`rounded-lg px-5 py-2 text-sm font-medium transition ${tab === t.key ? "bg-white text-slate-900 shadow" : "text-white/70 hover:text-white"}`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {tab === "digest" && (
-          <div className="grid gap-6 lg:grid-cols-[1fr_0.4fr]">
-            {/* 左侧：时间线 */}
-            <div className="space-y-8">
-              {Object.entries(groupedByDate).map(([date, datePages]) => (
-                <section key={date}>
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-blue-500" />
-                    <h3 className="text-lg font-semibold text-white">{date} · {formatDate(date)}</h3>
-                  </div>
-                  <div className="ml-1.5 border-l-2 border-white/10 pl-6 space-y-3">
-                    {datePages.map((page) => (
-                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
-                    ))}
-                  </div>
-                </section>
-              ))}
-              {Object.keys(groupedByDate).length === 0 && (
-                <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
-                  还没有页面记录。运行扩展并等待数据上传。
+        {/* 时间线 Tab */}
+        {tab === "timeline" && (
+          <div className="space-y-8">
+            {Object.entries(paginatedGrouped).map(([date, datePages]) => (
+              <section key={date}>
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-blue-500" />
+                  <h3 className="text-lg font-semibold text-white">{date} · {formatDate(date)}</h3>
+                  <span className="text-xs text-slate-400">{datePages.length} 条记录</span>
                 </div>
-              )}
-            </div>
-
-            {/* 右侧：今日总结 + Top5 主题 */}
-            <div className="space-y-6">
-              {todayDigest && (
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-5 backdrop-blur-md">
-                  <h3 className="text-base font-semibold text-white">今日总结</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-300">
-                    {renderMarkdownLinks(todayDigest.summary || "暂无摘要")}
-                  </p>
-                  <div className="mt-3 flex gap-3 text-xs text-slate-400">
-                    <span>{todayDigest.pageCount} 页面</span>
-                    <span>·</span>
-                    <span>{formatDuration(todayDigest.totalDurationMs)}</span>
-                  </div>
+                <div className="ml-1.5 border-l-2 border-white/10 pl-6 space-y-3">
+                  {datePages.map((page) => (
+                    <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
+                  ))}
                 </div>
-              )}
-
-              {top5Topics.length > 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-5 backdrop-blur-md">
-                  <h3 className="text-base font-semibold text-white">今日 Top5 主题</h3>
-                  <div className="mt-4 space-y-2.5">
-                    {top5Topics.map(([topic, count], i) => (
-                      <div key={topic} className="flex items-center gap-3">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500/20 text-xs font-bold text-blue-300">
-                          {i + 1}
-                        </span>
-                        <span className="flex-1 text-sm text-slate-200">{topic}</span>
-                        <span className="text-xs text-slate-400">{count}次</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {todayDigest && todayDigest.topDomains.length > 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/6 p-5 backdrop-blur-md">
-                  <h3 className="text-base font-semibold text-white">Top Domains</h3>
-                  <div className="mt-4 space-y-3">
-                    {todayDigest.topDomains.slice(0, 5).map((d) => (
-                      <div key={d.domain} className="flex items-center justify-between text-sm">
-                        <span className="text-slate-200">{d.domain}</span>
-                        <span className="text-slate-400">{formatDuration(d.durationMs)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+              </section>
+            ))}
+            {Object.keys(paginatedGrouped).length === 0 && (
+              <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
+                还没有页面记录。运行扩展并等待数据上传。
+              </div>
+            )}
+            {timelinePage < totalTimelinePages && (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setTimelinePage((p) => p + 1)}
+                  className="rounded-lg bg-white/10 px-6 py-2 text-sm font-medium text-white hover:bg-white/20 transition"
+                >
+                  加载更多
+                </button>
+              </div>
+            )}
           </div>
         )}
 
+        {/* 主题 Tab */}
+        {tab === "topics" && (
+          <div className="space-y-8">
+            {sortedTopics.length > 0 ? (
+              sortedTopics.map(([topic, topicPages]) => (
+                <section key={topic}>
+                  <div className="mb-4 flex items-center gap-3">
+                    <span className="rounded-full bg-blue-500/20 px-3 py-1 text-sm font-medium text-blue-300">
+                      {topic}
+                    </span>
+                    <span className="text-xs text-slate-400">{topicPages.length} 条记录</span>
+                  </div>
+                  <div className="ml-1.5 border-l-2 border-blue-500/20 pl-6 space-y-3">
+                    {topicPages.slice(0, 10).map((page) => (
+                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
+                    ))}
+                    {topicPages.length > 10 && (
+                      <p className="text-xs text-slate-400 pl-2">还有 {topicPages.length - 10} 条记录…</p>
+                    )}
+                  </div>
+                </section>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
+                还没有主题数据。页面记录上传后会自动归类主题。
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 每日总结 Tab */}
+        {tab === "digest" && (
+          <div className="space-y-6">
+            {digests.length > 0 ? (
+              digests.map((d) => (
+                <article key={d.id} className="rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-md space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">{d.date} · {formatDate(d.date)}</h3>
+                    <div className="flex gap-3 text-xs text-slate-400">
+                      <span>{d.pageCount} 页面</span>
+                      <span>·</span>
+                      <span>{formatDuration(d.totalDurationMs)}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm leading-7 text-slate-300">
+                    {renderMarkdownLinks(d.summary || "暂无摘要")}
+                  </div>
+                  {d.topDomains.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {d.topDomains.slice(0, 5).map((dom) => (
+                        <span key={dom.domain} className="rounded-full bg-white/8 px-3 py-1 text-xs text-slate-300">
+                          {dom.domain} · {formatDuration(dom.durationMs)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {d.topics.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {d.topics.map((tag) => (
+                        <span key={tag} className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-300">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
+                还没有每日总结。扩展会在每天结束时自动生成。
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 我的收藏 Tab */}
         {tab === "favorites" && (
           <div className="space-y-3">
             {favList.length > 0 ? (
