@@ -6,6 +6,7 @@ import {
   pauseAll,
   isTracked,
 } from "@/src/lib/tracker";
+import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
 
 export default defineBackground(() => {
   // --- tab 激活（切换 tab）---
@@ -51,5 +52,21 @@ export default defineBackground(() => {
 
   console.log("[PWM] Background tracker initialized", {
     id: browser.runtime.id,
+  });
+
+  // --- 每日聚合（alarms API）---
+  const ALARM_NAME = "pwm-daily-aggregate";
+
+  browser.alarms.create(ALARM_NAME, {
+    // 每 24 小时触发一次；首次延迟 1 分钟
+    delayInMinutes: 1,
+    periodInMinutes: 1440,
+  });
+
+  browser.alarms.onAlarm.addListener(async (alarm) => {
+    if (alarm.name !== ALARM_NAME) return;
+    const dateStr = getYesterdayDateStr();
+    const digest = await buildDailyDigest(dateStr);
+    console.log("[PWM] Daily aggregation", dateStr, digest ? "done" : "no data");
   });
 });
