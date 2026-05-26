@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@pwm/shared": ["../../packages/shared/src/index.ts"],
+      "@pwm/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": [

@@ -1,0 +1,28 @@
+// Prisma schema：仅存 DailyDigest（每日汇总），不存原始 page。
+// topDomains 以 JSON 字符串存储，业务层用 @pwm/shared 的 DomainStat[] 解析。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model DailyDigest {
+  id              Int      @id @default(autoincrement())
+  /// YYYY-MM-DD，业务唯一键
+  date            String   @unique
+  /// Markdown 摘要
+  summary         String
+  /// 当日访问总条数（含重复）
+  pageCount       Int
+  /// 当日活跃时长累计（ms）
+  totalDurationMs Int
+  /// JSON 字符串：DomainStat[]，形如 [{"domain":"x","count":1,"durationMs":1000}]
+  topDomains      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+}

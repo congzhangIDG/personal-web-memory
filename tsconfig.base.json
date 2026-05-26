@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@pwm/shared": ["packages/shared/src/index.ts"],
+      "@pwm/shared/*": ["packages/shared/src/*"]
+    }
+  }
+}

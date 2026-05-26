@@ -10,3 +10,7 @@ dist/
 .idea/
 .vscode/
 !.vscode/extensions.json
+
+# Prisma 本地 sqlite 数据库
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
