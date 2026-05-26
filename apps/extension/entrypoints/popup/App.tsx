@@ -16,7 +16,7 @@ type FormState = Omit<Settings, "id">;
 
 const defaultForm: FormState = {
   enabled: true,
-  apiBaseUrl: "http://localhost:3000",
+  apiBaseUrl: "http://127.0.0.1:3000/",
   lastUploadedDate: undefined,
   llmBaseUrl: "",
   llmModel: "",
@@ -40,7 +40,7 @@ function App() {
       const s = await db.settings.get("singleton");
       setForm({
         enabled: s?.enabled ?? true,
-        apiBaseUrl: s?.apiBaseUrl ?? "http://localhost:3000",
+        apiBaseUrl: s?.apiBaseUrl ?? "http://127.0.0.1:3000/",
         lastUploadedDate: s?.lastUploadedDate,
         llmBaseUrl: s?.llmBaseUrl ?? "",
         llmModel: s?.llmModel ?? "",
@@ -204,7 +204,7 @@ function App() {
                   type="url"
                   value={form.apiBaseUrl || ""}
                   onChange={(e) => setForm((c) => ({ ...c, apiBaseUrl: e.target.value }))}
-                  placeholder="http://localhost:3000"
+                  placeholder="http://127.0.0.1:3000/"
                 />
               </label>
 
@@ -329,18 +329,15 @@ function App() {
                 <span className="fieldTitle">上传频率（分钟）</span>
                 <span className="fieldHint">有新数据时按此间隔上传</span>
               </div>
-              <select
+              <input
                 className="textInput"
+                type="number"
+                min={1}
                 value={form.uploadIntervalMin ?? 5}
                 onChange={(e) =>
-                  setForm((c) => ({ ...c, uploadIntervalMin: Number(e.target.value) }))
+                  setForm((c) => ({ ...c, uploadIntervalMin: Number(e.target.value) || 1 }))
                 }
-              >
-                <option value={5}>5 分钟</option>
-                <option value={30}>30 分钟</option>
-                <option value={60}>1 小时</option>
-                <option value={1440}>每天</option>
-              </select>
+              />
             </label>
 
             <label className="fieldBlock fieldColumn">
