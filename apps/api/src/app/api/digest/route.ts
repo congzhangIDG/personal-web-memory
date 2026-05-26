@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getDigestSummary } from "@/lib/summary";
 import {
   uploadDigestRequestSchema,
   type UploadDigestResponse,
@@ -22,18 +23,26 @@ export async function POST(req: NextRequest) {
   }
 
   const { date, summary, pageCount, totalDurationMs, topDomains } = parsed.data;
+  const resolvedSummary = summary.trim()
+    ? summary.trim()
+    : await getDigestSummary({
+        date,
+        pageCount,
+        totalDurationMs,
+        topDomains,
+      });
 
   await prisma.dailyDigest.upsert({
     where: { date },
     create: {
       date,
-      summary,
+      summary: resolvedSummary,
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
     },
     update: {
-      summary,
+      summary: resolvedSummary,
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
