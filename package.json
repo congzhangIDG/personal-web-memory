@@ -1,0 +1,15 @@
+{
+  "name": "personal-web-memory",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev:ext": "pnpm -F @pwm/extension dev",
+    "dev:api": "pnpm -F @pwm/api dev",
+    "build:ext": "pnpm -F @pwm/extension build",
+    "build:api": "pnpm -F @pwm/api build"
+  }
+}
