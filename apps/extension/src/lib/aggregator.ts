@@ -2,6 +2,7 @@
 // 将某日的 PageRecord[] 聚合为 DailyDigest 并写入本地 digests 表。
 
 import { db } from "./db";
+import { isBlacklisted } from "./patterns";
 import type { DailyDigest, DomainStat } from "@pwm/shared";
 
 /**
@@ -31,6 +32,16 @@ export async function buildDailyDigest(
     .toArray();
 
   if (pages.length === 0) return null;
+
+  // 黑名单过滤（双重保险：已入库的旧数据也会被过滤）
+  const settings = await db.settings.get("singleton");
+  const blacklist = settings?.blacklist;
+  if (blacklist && blacklist.length > 0) {
+    const filtered = pages.filter((p) => !isBlacklisted(p.url, blacklist));
+    if (filtered.length === 0) return null;
+    pages.length = 0;
+    pages.push(...filtered);
+  }
 
   // 按 domain 聚合
   const domainMap = new Map<string, { count: number; durationMs: number }>();

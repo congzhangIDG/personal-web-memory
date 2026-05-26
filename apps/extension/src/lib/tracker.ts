@@ -2,6 +2,7 @@
 // 维护 tabId → 活跃记录的内存 Map，事件驱动计时。
 
 import { db } from "./db";
+import { isBlacklisted } from "./patterns";
 import type { PageRecord } from "@pwm/shared";
 
 /** 内存中正在追踪的 tab 状态 */
@@ -52,6 +53,10 @@ export async function startTracking(
 
   const domain = extractDomain(url);
   if (!domain) return;
+
+  const settings = await db.settings.get("singleton");
+  const blacklist = settings?.blacklist;
+  if (blacklist && blacklist.length > 0 && isBlacklisted(url, blacklist)) return;
 
   const record: Omit<PageRecord, "id"> = {
     url,
