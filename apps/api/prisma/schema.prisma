@@ -37,6 +37,7 @@ model PageVisit {
   digest      DailyDigest @relation(fields: [date], references: [date])
   createdAt   DateTime @default(now())
 
+  @@unique([url, date])
   @@index([date])
   @@index([favorited])
 }

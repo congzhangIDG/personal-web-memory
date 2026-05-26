@@ -56,20 +56,63 @@ export async function POST(req: NextRequest) {
   });
 
   if (pages && pages.length > 0) {
-    await prisma.pageVisit.deleteMany({ where: { date } });
-    await prisma.pageVisit.createMany({
-      data: pages.map((p) => ({
-        url: p.url,
-        title: p.title,
-        domain: p.domain,
-        visitedAt: p.visitedAt,
-        durationMs: p.durationMs ?? 0,
-        summary: p.summary ?? "",
-        topics: JSON.stringify(p.topics ?? []),
-        favorited: false,
-        date,
-      })),
-    });
+    // 按 URL 去重：累计时长，取最后访问时间
+    const urlMap = new Map<string, {
+      url: string;
+      title: string;
+      domain: string;
+      visitedAt: number;
+      durationMs: number;
+      summary: string;
+      topics: string[];
+      favorited: boolean;
+    }>();
+
+    for (const p of pages) {
+      const existing = urlMap.get(p.url);
+      if (existing) {
+        existing.durationMs += p.durationMs ?? 0;
+        if (p.visitedAt > existing.visitedAt) {
+          existing.visitedAt = p.visitedAt;
+          existing.title = p.title;
+        }
+      } else {
+        urlMap.set(p.url, {
+          url: p.url,
+          title: p.title,
+          domain: p.domain,
+          visitedAt: p.visitedAt,
+          durationMs: p.durationMs ?? 0,
+          summary: p.summary ?? "",
+          topics: p.topics ?? [],
+          favorited: false,
+        });
+      }
+    }
+
+    const dedupedPages = [...urlMap.values()];
+
+    for (const p of dedupedPages) {
+      await prisma.pageVisit.upsert({
+        where: { url_date: { url: p.url, date } },
+        create: {
+          url: p.url,
+          title: p.title,
+          domain: p.domain,
+          visitedAt: p.visitedAt,
+          durationMs: p.durationMs,
+          summary: p.summary,
+          topics: JSON.stringify(p.topics),
+          favorited: p.favorited,
+          date,
+        },
+        update: {
+          title: p.title,
+          visitedAt: p.visitedAt,
+          durationMs: { increment: p.durationMs },
+        },
+      });
+    }
   }
 
   const res: UploadDigestResponse = { ok: true, date };

@@ -16,15 +16,11 @@ type DigestSummaryInput = {
 };
 
 function formatDuration(durationMs: number): string {
-  const totalMinutes = Math.floor(durationMs / 1000 / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) {
-    return `${minutes} 分钟`;
-  }
-
-  return `${hours} 小时 ${minutes} 分钟`;
+  const totalSec = Math.floor(durationMs / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m === 0) return `${s}秒`;
+  return `${m}分${s}秒`;
 }
 
 function buildFallbackSummary(input: DigestSummaryInput): string {

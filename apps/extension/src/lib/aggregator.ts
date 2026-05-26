@@ -66,13 +66,36 @@ export async function buildDailyDigest(
   // upsert
   await db.digests.put(digest);
 
-  // 附带 pages 详情供后端存储（UploadDigestRequest 的 pages 字段）
-  const pagesPayload = pages.map((p) => ({
-    url: p.url,
-    title: p.title,
-    domain: p.domain,
-    visitedAt: p.visitedAt,
-    durationMs: p.durationMs ?? 0,
+  // 按 URL 去重：同一 URL 累计时长，取最后访问时间和最新标题
+  const urlMap = new Map<string, {
+    url: string;
+    title: string;
+    domain: string;
+    visitedAt: number;
+    durationMs: number;
+  }>();
+
+  for (const p of pages) {
+    const existing = urlMap.get(p.url);
+    if (existing) {
+      existing.durationMs += p.durationMs ?? 0;
+      if (p.visitedAt > existing.visitedAt) {
+        existing.visitedAt = p.visitedAt;
+        existing.title = p.title;
+      }
+    } else {
+      urlMap.set(p.url, {
+        url: p.url,
+        title: p.title,
+        domain: p.domain,
+        visitedAt: p.visitedAt,
+        durationMs: p.durationMs ?? 0,
+      });
+    }
+  }
+
+  const pagesPayload = [...urlMap.values()].map((p) => ({
+    ...p,
     summary: "",
     topics: [] as string[],
     favorited: false,

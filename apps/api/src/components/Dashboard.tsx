@@ -34,10 +34,11 @@ type Props = {
 };
 
 function formatDuration(ms: number): string {
-  const totalMin = Math.floor(ms / 1000 / 60);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h === 0 ? `${m}分钟` : `${h}小时${m}分钟`;
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m === 0) return `${s}秒`;
+  return `${m}分${s}秒`;
 }
 
 function formatTime(ts: number): string {

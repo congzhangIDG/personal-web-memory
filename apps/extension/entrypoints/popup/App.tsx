@@ -14,7 +14,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 type FormState = Omit<Settings, "id">;
 
-const DEFAULT_BLACKLIST = ["localhost", "127.0.0.1", "192.168.106.16"];
+const DEFAULT_BLACKLIST = ["localhost", "127.0.0.1", "*127.0.0.1*", "192.168.106.16"];
 
 const defaultForm: FormState = {
   enabled: true,
