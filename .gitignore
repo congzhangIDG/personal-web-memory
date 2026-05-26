@@ -6,6 +6,7 @@ dist/
 *.log
 .env
 .env.local
+.omo/
 .DS_Store
 .idea/
 .vscode/
