@@ -1,42 +1,203 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+.popupShell {
+  min-width: 360px;
+  min-height: 560px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(88, 120, 255, 0.24), transparent 28%),
+    linear-gradient(180deg, #0a1120 0%, #101828 100%);
+  color: #e5eefb;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #54bc4ae0);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.popupCard {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(18px);
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.heroBlock {
+  padding: 6px 2px 18px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.brandRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
-.card {
-  padding: 2em;
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 22px;
 }
 
-.read-the-docs {
-  color: #888;
+.brandRow h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.brandRow p {
+  margin: 4px 0 0;
+  color: rgba(229, 238, 251, 0.72);
+  font-size: 13px;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.statusDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  box-shadow: 0 0 18px currentColor;
+}
+
+.statusTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.statusDesc {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(229, 238, 251, 0.68);
+}
+
+.sectionBlock {
+  margin-top: 14px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(7, 14, 27, 0.38);
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(229, 238, 251, 0.72);
+}
+
+.fieldBlock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  font-size: 14px;
+}
+
+.fieldColumn {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.textInput {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fbff;
+  font-size: 14px;
+  outline: none;
+}
+
+.textInput::placeholder {
+  color: rgba(229, 238, 251, 0.4);
+}
+
+.textInput:focus {
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+}
+
+.switchButton {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+}
+
+.switchButton.isOn {
+  background: linear-gradient(90deg, #2563eb 0%, #4f46e5 100%);
+}
+
+.switchThumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 160ms ease;
+}
+
+.switchButton.isOn .switchThumb {
+  transform: translateX(22px);
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.statCard {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.statLabel {
+  font-size: 12px;
+  color: rgba(229, 238, 251, 0.58);
+}
+
+.statValue {
+  margin-top: 8px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.footerBlock {
+  margin-top: 16px;
+}
+
+.primaryButton {
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: linear-gradient(90deg, #3158ff 0%, #4f46e5 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 16px 32px rgba(49, 88, 255, 0.28);
+}
+
+.primaryButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }

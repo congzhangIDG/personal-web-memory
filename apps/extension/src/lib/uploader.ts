@@ -9,11 +9,21 @@ async function getApiBase(): Promise<string> {
   return settings?.apiBaseUrl ?? DEFAULT_API_BASE;
 }
 
+async function getSettings() {
+  return db.settings.get("singleton");
+}
+
 /**
  * 上传一份 DailyDigest 到后端，成功后更新 lastUploadedDate。
  * @returns true 表示上传成功
  */
 export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
+  const settings = await getSettings();
+  if (settings?.enabled === false) {
+    console.log("[PWM] Upload skipped because auto upload is disabled");
+    return false;
+  }
+
   const base = await getApiBase();
   const url = `${base}/api/digest`;
 
@@ -34,7 +44,8 @@ export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
       // 更新本地设置
       await db.settings.put({
         id: "singleton",
-        enabled: true,
+        enabled: settings?.enabled ?? true,
+        apiBaseUrl: settings?.apiBaseUrl,
         lastUploadedDate: digest.date,
       });
       return true;
