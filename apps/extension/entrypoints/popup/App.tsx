@@ -1,36 +1,57 @@
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/src/lib/db";
+import type { Settings } from "@pwm/shared";
 
-type FormState = {
-  enabled: boolean;
-  apiBaseUrl: string;
-  lastUploadedDate: string;
-};
+type Tab = "home" | "llm" | "blacklist" | "prefs" | "about";
 
-const defaultState: FormState = {
+const TABS: { id: Tab; label: string }[] = [
+  { id: "home", label: "首页" },
+  { id: "llm", label: "LLM" },
+  { id: "blacklist", label: "黑名单" },
+  { id: "prefs", label: "偏好" },
+  { id: "about", label: "关于" },
+];
+
+type FormState = Omit<Settings, "id">;
+
+const defaultForm: FormState = {
   enabled: true,
   apiBaseUrl: "http://localhost:3000",
-  lastUploadedDate: "-",
+  lastUploadedDate: undefined,
+  llmBaseUrl: "",
+  llmModel: "",
+  llmApiKey: "",
+  blacklist: [],
+  uploadIntervalMin: 5,
+  minDurationSec: 5,
+  recordIncognito: false,
 };
 
 function App() {
-  const [form, setForm] = useState<FormState>(defaultState);
+  const [tab, setTab] = useState<Tab>("home");
+  const [form, setForm] = useState<FormState>(defaultForm);
   const [status, setStatus] = useState("正在读取设置...");
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [newBlacklistItem, setNewBlacklistItem] = useState("");
 
   useEffect(() => {
     async function loadSettings() {
-      const settings = await db.settings.get("singleton");
-
+      const s = await db.settings.get("singleton");
       setForm({
-        enabled: settings?.enabled ?? true,
-        apiBaseUrl: settings?.apiBaseUrl ?? "http://localhost:3000",
-        lastUploadedDate: settings?.lastUploadedDate ?? "-",
+        enabled: s?.enabled ?? true,
+        apiBaseUrl: s?.apiBaseUrl ?? "http://localhost:3000",
+        lastUploadedDate: s?.lastUploadedDate,
+        llmBaseUrl: s?.llmBaseUrl ?? "",
+        llmModel: s?.llmModel ?? "",
+        llmApiKey: s?.llmApiKey ?? "",
+        blacklist: s?.blacklist ?? [],
+        uploadIntervalMin: s?.uploadIntervalMin ?? 5,
+        minDurationSec: s?.minDurationSec ?? 5,
+        recordIncognito: s?.recordIncognito ?? false,
       });
-      setStatus("设置已加载，可手动生成或等待自动上传");
+      setStatus("设置已加载");
     }
-
     void loadSettings();
   }, []);
 
@@ -47,13 +68,17 @@ function App() {
       await db.settings.put({
         id: "singleton",
         enabled: form.enabled,
-        apiBaseUrl: form.apiBaseUrl.trim(),
-        lastUploadedDate:
-          prev?.lastUploadedDate && prev.lastUploadedDate !== "-"
-            ? prev.lastUploadedDate
-            : undefined,
+        apiBaseUrl: (form.apiBaseUrl || "").trim() || undefined,
+        lastUploadedDate: prev?.lastUploadedDate,
+        llmBaseUrl: (form.llmBaseUrl || "").trim() || undefined,
+        llmModel: (form.llmModel || "").trim() || undefined,
+        llmApiKey: (form.llmApiKey || "").trim() || undefined,
+        blacklist: form.blacklist,
+        uploadIntervalMin: form.uploadIntervalMin,
+        minDurationSec: form.minDurationSec,
+        recordIncognito: form.recordIncognito,
       });
-      setStatus("配置已保存，后续上传将使用新的设置");
+      setStatus("配置已保存");
     } catch (error) {
       console.error("[PWM] Save settings failed", error);
       setStatus("保存失败，请稍后重试");
@@ -65,21 +90,15 @@ function App() {
   async function handleGenerateTodayDigest() {
     setIsGenerating(true);
     setStatus("正在生成今日工作记忆...");
-
     try {
       const result = await browser.runtime.sendMessage({
         type: "pwm:generate-today-digest",
       });
-
       if (!result?.ok) {
         setStatus(result?.message ?? "生成失败，请稍后重试");
         return;
       }
-
-      setForm((current) => ({
-        ...current,
-        lastUploadedDate: result.date ?? getTodayDateStr(),
-      }));
+      setForm((c) => ({ ...c, lastUploadedDate: result.date }));
       setStatus(result.message ?? "今日工作记忆已生成并上传");
     } catch (error) {
       console.error("[PWM] Generate today digest failed", error);
@@ -89,101 +108,302 @@ function App() {
     }
   }
 
+  function addBlacklistItem() {
+    const item = newBlacklistItem.trim();
+    if (!item) return;
+    if (form.blacklist?.includes(item)) return;
+    setForm((c) => ({ ...c, blacklist: [...(c.blacklist || []), item] }));
+    setNewBlacklistItem("");
+  }
+
+  function removeBlacklistItem(index: number) {
+    setForm((c) => ({
+      ...c,
+      blacklist: (c.blacklist || []).filter((_, i) => i !== index),
+    }));
+  }
+
   return (
     <div className="popupShell">
       <div className="popupCard">
-        <header className="heroBlock">
-          <div className="brandRow">
-            <span className="brandMark">🧠</span>
-            <div>
-              <h1>Personal Web Memory</h1>
-              <p>记录、聚合、上传你的浏览记忆</p>
-            </div>
-          </div>
-
-          <div className="statusRow">
-            <span
-              className="statusDot"
-              style={{ backgroundColor: statusTone.dot }}
-            />
-            <div>
-              <div className="statusTitle">{statusTone.text}</div>
-              <div className="statusDesc">{status}</div>
-            </div>
-          </div>
-        </header>
-
-        <section className="sectionBlock">
-          <div className="sectionTitle">快速操作</div>
-
-          <div className="helperCard">
-            <div className="helperTitle">立即生成今日工作记忆</div>
-            <div className="helperText">
-              立刻聚合“今天”的本地浏览记录，并上传到当前 API 地址。
-            </div>
+        {/* Tab 导航 */}
+        <nav className="tabNav">
+          {TABS.map((t) => (
             <button
+              key={t.id}
               type="button"
-              className="secondaryButton"
-              onClick={() => void handleGenerateTodayDigest()}
-              disabled={isGenerating}
+              className={`tabBtn ${tab === t.id ? "tabActive" : ""}`}
+              onClick={() => setTab(t.id)}
             >
-              {isGenerating ? "生成中..." : "立即生成并上传"}
+              {t.label}
             </button>
-          </div>
-        </section>
+          ))}
+        </nav>
 
-        <section className="sectionBlock">
-          <div className="sectionTitle">上传配置</div>
+        {/* 首页 */}
+        {tab === "home" && (
+          <>
+            <header className="heroBlock">
+              <div className="brandRow">
+                <span className="brandMark">🧠</span>
+                <div>
+                  <h1>Personal Web Memory</h1>
+                  <p>记录、聚合、上传你的浏览记忆</p>
+                </div>
+              </div>
+              <div className="statusRow">
+                <span className="statusDot" style={{ backgroundColor: statusTone.dot }} />
+                <div>
+                  <div className="statusTitle">{statusTone.text}</div>
+                  <div className="statusDesc">{status}</div>
+                </div>
+              </div>
+            </header>
 
-          <label className="fieldBlock">
-            <div className="fieldTextGroup">
-              <span className="fieldTitle">启用自动上传</span>
-              <span className="fieldHint">关闭后，后台定时上传将被跳过</span>
+            <section className="sectionBlock">
+              <div className="sectionTitle">快速操作</div>
+              <div className="helperCard">
+                <div className="helperTitle">立即生成今日工作记忆</div>
+                <div className="helperText">
+                  立刻聚合"今天"的本地浏览记录，并上传到当前 API 地址。
+                </div>
+                <button
+                  type="button"
+                  className="secondaryButton"
+                  onClick={() => void handleGenerateTodayDigest()}
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? "生成中..." : "立即生成并上传"}
+                </button>
+              </div>
+            </section>
+
+            <section className="sectionBlock">
+              <div className="sectionTitle">上传配置</div>
+              <label className="fieldBlock">
+                <div className="fieldTextGroup">
+                  <span className="fieldTitle">启用自动上传</span>
+                  <span className="fieldHint">关闭后，后台定时上传将被跳过</span>
+                </div>
+                <button
+                  type="button"
+                  className={`switchButton ${form.enabled ? "isOn" : ""}`}
+                  onClick={() => setForm((c) => ({ ...c, enabled: !c.enabled }))}
+                >
+                  <span className="switchThumb" />
+                </button>
+              </label>
+
+              <label className="fieldBlock fieldColumn">
+                <div className="fieldTextGroup fieldTextGroupColumn">
+                  <span className="fieldTitle">API 基地址</span>
+                  <span className="fieldHint">后端服务地址</span>
+                </div>
+                <input
+                  className="textInput"
+                  type="url"
+                  value={form.apiBaseUrl || ""}
+                  onChange={(e) => setForm((c) => ({ ...c, apiBaseUrl: e.target.value }))}
+                  placeholder="http://localhost:3000"
+                />
+              </label>
+
+              <div className="statsGrid">
+                <div className="statCard">
+                  <div className="statLabel">上传模式</div>
+                  <div className="statValue">{form.enabled ? "自动" : "手动"}</div>
+                </div>
+                <div className="statCard">
+                  <div className="statLabel">最近上传</div>
+                  <div className="statValue">{form.lastUploadedDate ?? "-"}</div>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* LLM 配置 */}
+        {tab === "llm" && (
+          <section className="sectionBlock">
+            <div className="sectionTitle">LLM 配置</div>
+            <div className="helperCard">
+              <div className="helperText">
+                扩展端 LLM 配置会随上传传给后端，覆盖后端 .env 中的默认值。留空则使用后端默认配置。
+              </div>
             </div>
-            <button
-              type="button"
-              className={`switchButton ${form.enabled ? "isOn" : ""}`}
-              onClick={() =>
-                setForm((current) => ({ ...current, enabled: !current.enabled }))
-              }
-            >
-              <span className="switchThumb" />
-            </button>
-          </label>
 
-          <label className="fieldBlock fieldColumn">
-            <div className="fieldTextGroup fieldTextGroupColumn">
-              <span className="fieldTitle">API 基地址</span>
-              <span className="fieldHint">
-                支持 http://localhost:3000、http://127.0.0.1:3000 或 http://192.168.x.x:3000
-              </span>
-            </div>
-            <input
-              className="textInput"
-              type="url"
-              value={form.apiBaseUrl}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  apiBaseUrl: event.target.value,
-                }))
-              }
-              placeholder="http://localhost:3000"
-            />
-          </label>
+            <label className="fieldBlock fieldColumn">
+              <div className="fieldTextGroup fieldTextGroupColumn">
+                <span className="fieldTitle">API Base URL</span>
+              </div>
+              <input
+                className="textInput"
+                type="url"
+                value={form.llmBaseUrl || ""}
+                onChange={(e) => setForm((c) => ({ ...c, llmBaseUrl: e.target.value }))}
+                placeholder="https://api.openai.com/v1"
+              />
+            </label>
 
-          <div className="statsGrid">
-            <div className="statCard">
-              <div className="statLabel">当前上传模式</div>
-              <div className="statValue">{form.enabled ? "自动上传" : "仅手动上传"}</div>
-            </div>
-            <div className="statCard">
-              <div className="statLabel">最近成功上传日期</div>
-              <div className="statValue">{form.lastUploadedDate}</div>
-            </div>
-          </div>
-        </section>
+            <label className="fieldBlock fieldColumn">
+              <div className="fieldTextGroup fieldTextGroupColumn">
+                <span className="fieldTitle">Model ID</span>
+              </div>
+              <input
+                className="textInput"
+                type="text"
+                value={form.llmModel || ""}
+                onChange={(e) => setForm((c) => ({ ...c, llmModel: e.target.value }))}
+                placeholder="gpt-4o-mini"
+              />
+            </label>
 
+            <label className="fieldBlock fieldColumn">
+              <div className="fieldTextGroup fieldTextGroupColumn">
+                <span className="fieldTitle">API Key</span>
+              </div>
+              <input
+                className="textInput"
+                type="password"
+                value={form.llmApiKey || ""}
+                onChange={(e) => setForm((c) => ({ ...c, llmApiKey: e.target.value }))}
+                placeholder="sk-..."
+              />
+            </label>
+          </section>
+        )}
+
+        {/* 黑名单 */}
+        {tab === "blacklist" && (
+          <section className="sectionBlock">
+            <div className="sectionTitle">黑名单</div>
+            <div className="helperCard">
+              <div className="helperText">
+                添加不需要记录的域名或 URL 通配符模式。例如：google.com、*://*/login*
+              </div>
+            </div>
+
+            <div className="fieldBlock fieldColumn">
+              <div className="blacklistInputRow">
+                <input
+                  className="textInput"
+                  type="text"
+                  value={newBlacklistItem}
+                  onChange={(e) => setNewBlacklistItem(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addBlacklistItem()}
+                  placeholder="输入域名或 URL 模式"
+                />
+                <button type="button" className="addBtn" onClick={addBlacklistItem}>
+                  添加
+                </button>
+              </div>
+            </div>
+
+            <ul className="blacklistList">
+              {(form.blacklist || []).map((item, i) => (
+                <li key={i} className="blacklistItem">
+                  <span className="blacklistText">{item}</span>
+                  <button
+                    type="button"
+                    className="removeBtn"
+                    onClick={() => removeBlacklistItem(i)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+              {(!form.blacklist || form.blacklist.length === 0) && (
+                <li className="blacklistEmpty">暂无黑名单规则</li>
+              )}
+            </ul>
+          </section>
+        )}
+
+        {/* 偏好设置 */}
+        {tab === "prefs" && (
+          <section className="sectionBlock">
+            <div className="sectionTitle">偏好设置</div>
+
+            <label className="fieldBlock fieldColumn">
+              <div className="fieldTextGroup fieldTextGroupColumn">
+                <span className="fieldTitle">上传频率（分钟）</span>
+                <span className="fieldHint">有新数据时按此间隔上传</span>
+              </div>
+              <select
+                className="textInput"
+                value={form.uploadIntervalMin ?? 5}
+                onChange={(e) =>
+                  setForm((c) => ({ ...c, uploadIntervalMin: Number(e.target.value) }))
+                }
+              >
+                <option value={5}>5 分钟</option>
+                <option value={30}>30 分钟</option>
+                <option value={60}>1 小时</option>
+                <option value={1440}>每天</option>
+              </select>
+            </label>
+
+            <label className="fieldBlock fieldColumn">
+              <div className="fieldTextGroup fieldTextGroupColumn">
+                <span className="fieldTitle">最小记录时长（秒）</span>
+                <span className="fieldHint">停留低于此值的页面不记录</span>
+              </div>
+              <input
+                className="textInput"
+                type="number"
+                min={0}
+                value={form.minDurationSec ?? 5}
+                onChange={(e) =>
+                  setForm((c) => ({ ...c, minDurationSec: Number(e.target.value) }))
+                }
+              />
+            </label>
+
+            <label className="fieldBlock">
+              <div className="fieldTextGroup">
+                <span className="fieldTitle">记录隐身标签页</span>
+                <span className="fieldHint">开启后，隐身模式下的浏览也会被记录</span>
+              </div>
+              <button
+                type="button"
+                className={`switchButton ${form.recordIncognito ? "isOn" : ""}`}
+                onClick={() => setForm((c) => ({ ...c, recordIncognito: !c.recordIncognito }))}
+              >
+                <span className="switchThumb" />
+              </button>
+            </label>
+          </section>
+        )}
+
+        {/* 关于 */}
+        {tab === "about" && (
+          <section className="sectionBlock">
+            <div className="sectionTitle">关于</div>
+            <div className="aboutContent">
+              <div className="aboutRow">
+                <span className="fieldTitle">版本</span>
+                <span className="fieldHint">1.0.0</span>
+              </div>
+              <div className="aboutRow">
+                <span className="fieldTitle">项目</span>
+                <a
+                  className="aboutLink"
+                  href="https://github.com/user/personal-web-memory"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  GitHub
+                </a>
+              </div>
+              <div className="aboutDesc">
+                Personal Web Memory 是一个浏览记忆系统，通过扩展采集浏览行为，按日聚合为
+                Daily Digest，由 Dashboard 展示并生成 AI 摘要。
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 全局保存按钮 */}
         <footer className="footerBlock">
           <button
             type="button"
@@ -191,7 +411,7 @@ function App() {
             onClick={() => void handleSave()}
             disabled={isSaving}
           >
-            {isSaving ? "保存中..." : "保存当前配置"}
+            {isSaving ? "保存中..." : "保存配置"}
           </button>
         </footer>
       </div>
