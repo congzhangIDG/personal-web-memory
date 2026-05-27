@@ -73,17 +73,39 @@ function renderMarkdownLinks(text: string) {
 
 const SUMMARY_TRUNCATE = 250;
 
-function DigestDomainList({ domains }: { domains: [string, number][] }) {
+function DigestDomainList({ domains, pages }: { domains: [string, number][]; pages: PageItem[] }) {
   const [showAll, setShowAll] = useState(false);
+  const [hoveredDomain, setHoveredDomain] = useState<string | null>(null);
   const visible = showAll ? domains : domains.slice(0, 10);
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
       <h4 className="text-xs font-medium text-white/50 mb-2">Domains TOP {showAll ? domains.length : Math.min(10, domains.length)}</h4>
       <div className="space-y-1">
         {visible.map(([domain, count]) => (
-          <div key={domain} className="flex items-center justify-between text-sm">
-            <span className="text-emerald-300 truncate">{domain}</span>
+          <div
+            key={domain}
+            className="relative flex items-center justify-between text-sm"
+            onMouseEnter={() => setHoveredDomain(domain)}
+            onMouseLeave={() => setHoveredDomain(null)}
+          >
+            <span className="text-emerald-300 truncate cursor-default">{domain}</span>
             <span className="text-white/40 text-xs ml-2 shrink-0">{count}</span>
+            {hoveredDomain === domain && (
+              <div className="absolute left-0 top-full mt-1 z-50 w-80 max-h-60 overflow-y-auto rounded-lg border border-white/15 bg-slate-900/95 p-3 shadow-xl backdrop-blur-md">
+                {pages.filter((p) => p.domain === domain).map((p) => (
+                  <a
+                    key={p.id}
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block py-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 -mx-1 px-1 rounded"
+                  >
+                    <div className="text-xs text-white/80 truncate">{p.title || p.url}</div>
+                    <div className="text-[10px] text-white/30">{new Date(p.visitedAt).toLocaleString("zh-CN")}</div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -519,7 +541,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                     </div>
                   )}
                   {sortedDomains.length > 0 && (
-                    <DigestDomainList domains={sortedDomains} />
+                    <DigestDomainList domains={sortedDomains} pages={pageList} />
                   )}
                 </div>
               );
