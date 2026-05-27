@@ -1,4 +1,3 @@
-<img width="1427" height="798" alt="image" src="https://github.com/user-attachments/assets/c4146851-709e-4fe4-be78-ce792a8e4e04" /># Personal Web Memory
 
 一句话说明：Personal Web Memory 是一个面向希望沉淀日常浏览与学习轨迹的个人用户的浏览记忆系统，通过 **WXT 扩展采集本地浏览行为、按日聚合为 Daily Digest、再由 Next.js + Prisma + SQLite Dashboard 展示并可选生成 AI 摘要**，帮助用户把碎片化网页访问转成可回顾的个人知识记录。
 
