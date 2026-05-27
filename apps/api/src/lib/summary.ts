@@ -5,6 +5,7 @@ type PageRef = {
   url: string;
   domain: string;
   durationMs: number;
+  summary?: string;
 };
 
 type DigestSummaryInput = {
@@ -38,77 +39,222 @@ function buildFallbackSummary(input: DigestSummaryInput): string {
   ].join("");
 }
 
+/**
+ * 对一组页面做组内摘要（用于大容量分块场景）
+ */
+async function summarizeChunk(
+  date: string,
+  chunkIndex: number,
+  totalChunks: number,
+  pages: PageRef[],
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const apiBase = process.env.OPENAI_API_BASE;
+  const modelId = process.env.OPENAI_MODEL_ID;
+  if (!apiKey || !apiBase || !modelId) return null;
+
+  const pagesSection = pages
+    .map((p, i) => {
+      let line = `${i + 1}. [${p.title}](${p.url}) — ${p.domain}，停留 ${formatDuration(p.durationMs)}`;
+      if (p.summary) line += `\n   摘要：${p.summary.slice(0, 300)}`;
+      return line;
+    })
+    .join("\n\n");
+
+  const prompt = [
+    `以下是 ${date} 浏览记录的第 ${chunkIndex + 1}/${totalChunks} 组（共 ${pages.length} 个页面）。`,
+    "",
+    pagesSection,
+    "",
+    "请用简体中文写一段 200~300 字的组内总结。",
+    "要求：",
+    "  1. 提炼该组页面的核心主题和共同关注点；",
+    "  2. 指出页面之间的关联或递进关系；",
+    "  3. 引用相关页面（Markdown 链接格式）。",
+  ].join("\n");
+
+  try {
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0.4,
+        messages: [
+          { role: "system", content: "你是一个浏览记录分组整理助手。" },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 基于分块摘要合成最终日总结
+ */
+async function synthesizeFinalSummary(
+  date: string,
+  pageCount: number,
+  totalDurationMs: number,
+  topDomains: string,
+  chunkSummaries: string[],
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const apiBase = process.env.OPENAI_API_BASE;
+  const modelId = process.env.OPENAI_MODEL_ID;
+  if (!apiKey || !apiBase || !modelId) return null;
+
+  const chunksText = chunkSummaries
+    .map((s, i) => `【第 ${i + 1} 组总结】\n${s}`)
+    .join("\n\n");
+
+  const prompt = [
+    `日期：${date}`,
+    `访问页面总数：${pageCount}`,
+    `总活跃时长：${formatDuration(totalDurationMs)}`,
+    `Top Domains：\n${topDomains}`,
+    "",
+    "以下是各分组的浏览总结：",
+    chunksText,
+    "",
+    "请基于以上分组总结，用简体中文撰写一篇综合性的每日浏览总结（400~600 字）。",
+    "要求：",
+    "1）分析当日关注的**核心主题**和**知识脉络**，找出页面之间的关联与递进关系；",
+    "2）不是简单罗列网页，而是对全天浏览内容进行**二次提炼和综合**；",
+    "3）在总结中引用相关页面，使用 Markdown 链接格式 [标题](url)；",
+    "4）指出浏览重点、时长分布特征以及知识收获；",
+    "5）结构清晰：先用一句话概括当日焦点，再分层展开各个主题，最后简要总结。",
+  ].join("\n\n");
+
+  try {
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0.4,
+        messages: [
+          { role: "system", content: "你是一个个人知识工作流助手，负责把浏览统计整理成简洁可信的中文日总结。" },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) throw new Error(`synthesizeFinalSummary failed: ${response.status}`);
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const CHUNK_SIZE = 30;
+
 async function generateAiSummary(input: DigestSummaryInput): Promise<string | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   const apiBase = process.env.OPENAI_API_BASE;
   const modelId = process.env.OPENAI_MODEL_ID;
 
-  if (!apiKey || !apiBase || !modelId) {
-    return null;
-  }
+  if (!apiKey || !apiBase || !modelId) return null;
 
-  const topDomains = input.topDomains
+  const pages = input.pages ?? [];
+  const topDomainsText = input.topDomains
     .slice(0, 5)
-    .map(
-      (item, index) =>
-        `${index + 1}. ${item.domain}，访问 ${item.count} 次，时长 ${formatDuration(item.durationMs)}`,
-    )
+    .map((item, index) => `${index + 1}. ${item.domain}，访问 ${item.count} 次，时长 ${formatDuration(item.durationMs)}`)
     .join("\n");
 
-  const pagesSection = input.pages && input.pages.length > 0
-    ? input.pages
-        .slice(0, 10)
-        .map((p, i) => `${i + 1}. [${p.title}](${p.url}) — ${p.domain}，停留 ${formatDuration(p.durationMs)}`)
-        .join("\n")
+  // ── 小量页面：直接单次总结 ──
+  if (pages.length <= CHUNK_SIZE) {
+    return await summarizeAllAtOnce(input, topDomainsText);
+  }
+
+  // ── 大量页面：先分块总结，再综合 ──
+  const chunks: PageRef[][] = [];
+  for (let i = 0; i < pages.length; i += CHUNK_SIZE) {
+    chunks.push(pages.slice(i, i + CHUNK_SIZE));
+  }
+
+  const chunkSummaries: string[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const s = await summarizeChunk(input.date, i, chunks.length, chunks[i]);
+    if (s) chunkSummaries.push(s);
+  }
+
+  if (chunkSummaries.length === 0) return null;
+
+  // 如果只有一组有结果，直接返回
+  if (chunkSummaries.length === 1) return chunkSummaries[0];
+
+  return await synthesizeFinalSummary(
+    input.date,
+    input.pageCount,
+    input.totalDurationMs,
+    topDomainsText,
+    chunkSummaries,
+  );
+}
+
+/**
+ * 单次直接总结（≤30 页）
+ */
+async function summarizeAllAtOnce(
+  input: DigestSummaryInput,
+  topDomainsText: string,
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const apiBase = process.env.OPENAI_API_BASE;
+  const modelId = process.env.OPENAI_MODEL_ID;
+  if (!apiKey || !apiBase || !modelId) return null;
+
+  const pages = input.pages ?? [];
+  const pagesSection = pages.length > 0
+    ? pages
+        .map((p, i) => {
+          let line = `${i + 1}. [${p.title}](${p.url}) — ${p.domain}，停留 ${formatDuration(p.durationMs)}`;
+          if (p.summary) line += `\n   摘要：${p.summary.slice(0, 300)}`;
+          return line;
+        })
+        .join("\n\n")
     : "无";
 
   const prompt = [
     `日期：${input.date}`,
     `访问页面数：${input.pageCount}`,
     `总活跃时长：${formatDuration(input.totalDurationMs)}`,
-    `Top Domains：\n${topDomains || "无"}`,
-    `主要访问页面：\n${pagesSection}`,
-    "请基于以上数据，用简体中文生成 100~200 字的每日浏览总结。",
+    `Top Domains：\n${topDomainsText || "无"}`,
+    `主要访问页面（含标题、链接、停留时长、页面摘要）：\n${pagesSection}`,
+    "请基于以上数据，用简体中文撰写一段综合性的每日浏览总结（400~600 字）。",
     "要求：",
-    "1）自然、克制；",
-    "2）突出主要关注主题；",
+    "1）分析当日关注的**核心主题**和**知识脉络**，找出页面之间的关联与递进关系；",
+    "2）不是简单罗列网页，而是对全天浏览内容进行**二次提炼和综合**；",
     "3）在总结中引用相关页面，使用 Markdown 链接格式 [标题](url)；",
-    "4）至少引用 2~5 个最相关的页面链接。",
+    "4）指出浏览重点、时长分布特征以及知识收获；",
+    "5）结构清晰：先用一句话概括当日焦点，再分层展开各个主题，最后简要总结。",
   ].join("\n\n");
 
-  const response = await fetch(`${apiBase}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: modelId,
-      temperature: 0.4,
-      messages: [
-        {
-          role: "system",
-          content:
-            "你是一个个人知识工作流助手，负责把浏览统计整理成简洁可信的中文日总结。",
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`AI summary request failed: ${response.status}`);
+  try {
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0.4,
+        messages: [
+          { role: "system", content: "你是一个个人知识工作流助手，负责把浏览统计整理成简洁可信的中文日总结。" },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) throw new Error(`summarizeAllAtOnce failed: ${response.status}`);
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() ?? null;
+  } catch {
+    return null;
   }
-
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-
-  const content = data.choices?.[0]?.message?.content?.trim();
-  return content || null;
 }
 
 /**
@@ -128,18 +274,18 @@ async function generateAiPageSummary(
   if (!apiKey || !apiBase || !modelId) return null;
 
   const prompt = [
-    "以下是一段网页正文内容。请用流畅自然的中文写一段完整的摘要。",
+    "以下是一段网页正文内容。请根据原文撰写一篇完整的摘要。",
     "要求：",
     "  1. 完全基于提供的文本，不要添加原文没有的信息",
     "  2. 使用简体中文，语句通顺连贯，过渡自然",
     "  3. 写成一个完整的段落，不要用列表或分点",
-    "  4. 保证语义完整，不要中途截断",
+    "  4. 保证语义完整，涵盖原文**主要内容**和**关键论点**，不要遗漏重要信息",
     "  5. 用平实的叙述性语言，不要用'本文介绍了'、'该页面讨论了'等套话",
-    "  6. 控制在 500 字以内",
+    "  6. 篇幅控制在 800~1000 字，保证内容充实但不冗余",
     "",
     `标题：${title}`,
     "",
-    `正文片段：\n${content.slice(0, 3000)}`,
+    `正文片段：\n${content.slice(0, 6000)}`,
   ].join("\n");
 
   try {
@@ -152,7 +298,7 @@ async function generateAiPageSummary(
       body: JSON.stringify({
         model: modelId,
         temperature: 0.3,
-        max_tokens: 800,
+        max_tokens: 1500,
         messages: [
           {
             role: "system",
@@ -170,7 +316,7 @@ async function generateAiPageSummary(
       choices?: Array<{ message?: { content?: string } }>;
     };
     const content = data.choices?.[0]?.message?.content?.trim();
-    return content?.slice(0, 500) ?? null;
+    return content?.slice(0, 1000) ?? null;
   } catch {
     return null;
   }
@@ -217,7 +363,7 @@ export async function generatePageSummary(
   const llmSummary = await generateAiPageSummary(title, excerpt);
   if (llmSummary) return llmSummary;
 
-  return excerpt.slice(0, 500).trim();
+  return excerpt.slice(0, 1000).trim();
 }
 
 export async function getDigestSummary(input: DigestSummaryInput): Promise<string> {

@@ -71,7 +71,7 @@ function renderMarkdownLinks(text: string) {
   });
 }
 
-const SUMMARY_TRUNCATE = 100;
+const SUMMARY_TRUNCATE = 250;
 
 function PageCard({ page, onToggleFavorite, onTopicClick }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
@@ -314,18 +314,22 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                 const label = tab === "timeline"
                   ? id.replace("date-", "")
                   : id.replace("topic-", "");
+                const count = tab === "timeline"
+                  ? (paginatedGrouped[id.replace("date-", "")]?.length ?? 0)
+                  : (topicMap[id.replace("topic-", "")]?.length ?? 0);
                 const isActive = activeNav === id;
                 return (
                   <button
                     key={id}
                     onClick={() => scrollToSection(id)}
-                    className={`block w-full truncate text-left text-sm leading-8 transition-colors ${
+                    className={`flex w-full items-center gap-1 text-left text-sm leading-8 transition-colors ${
                       isActive
                         ? "border-l-2 border-blue-400 -ml-[14px] pl-[12px] text-blue-400 font-medium"
                         : "text-white/50 hover:text-white/70 hover:border-l-2 hover:border-white/30 hover:-ml-[14px] hover:pl-[12px]"
                     }`}
                   >
-                    {label}
+                    <span className="truncate">{label}</span>
+                    <span className="shrink-0 text-xs text-white/30 font-normal">({count})</span>
                   </button>
                 );
               })}
@@ -422,7 +426,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                       <span>{formatDuration(d.totalDurationMs)}</span>
                     </div>
                   </div>
-                  <div className="text-sm leading-7 text-slate-300">
+                  <div className="text-sm leading-7 text-slate-300 whitespace-pre-wrap">
                     {renderMarkdownLinks(d.summary || "暂无摘要")}
                   </div>
                   {d.topDomains.length > 0 && (
@@ -443,6 +447,23 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                       ))}
                     </div>
                   )}
+                  {/* 该日页面列表 */}
+                  {(() => {
+                    const dayPages = pageList.filter((p) => p.date === d.date);
+                    if (dayPages.length === 0) return null;
+                    return (
+                      <details className="group">
+                        <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200 transition-colors select-none">
+                          查看当日 {dayPages.length} 个页面详情 ▾
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          {dayPages.map((page) => (
+                            <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  })()}
                 </article>
               ))
             ) : (
