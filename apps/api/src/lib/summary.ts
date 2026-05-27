@@ -62,8 +62,6 @@ async function summarizeChunk(
     })
     .join("\n\n");
 
-  const chunkSystemPrompt = await getAppSetting(SETTING_KEYS.digestChunkSystemPrompt);
-
   const prompt = [
     `以下是 ${date} 浏览记录的第 ${chunkIndex + 1}/${totalChunks} 组（共 ${pages.length} 个页面）。`,
     "",
@@ -76,6 +74,8 @@ async function summarizeChunk(
     "  3. 引用相关页面（Markdown 链接格式）。",
   ].join("\n");
 
+  const chunkSystemPrompt = await getAppSetting(SETTING_KEYS.digestChunkSystemPrompt);
+
   try {
     const response = await fetch(`${apiBase}/chat/completions`, {
       method: "POST",
@@ -84,7 +84,7 @@ async function summarizeChunk(
         model: modelId,
         temperature: 0.4,
         messages: [
-          { role: "system", content: digestSystemPrompt },
+          { role: "system", content: chunkSystemPrompt },
           { role: "user", content: prompt },
         ],
       }),
