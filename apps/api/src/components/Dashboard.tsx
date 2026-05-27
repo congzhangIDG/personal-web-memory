@@ -249,7 +249,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
         if (Date.now() - navClickTimeRef.current < 1000) return;
         let best: IntersectionObserverEntry | null = null;
         for (const e of entries) {
-          if (e.isIntersecting && (!best || e.boundingClientRect.top > best.boundingClientRect.top)) {
+          if (e.isIntersecting && (!best || e.boundingClientRect.top < best.boundingClientRect.top)) {
             best = e;
           }
         }
@@ -258,7 +258,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
           setActiveNav(best.target.id);
         }
       },
-      { rootMargin: "-44px 0px -60% 0px" },
+      { rootMargin: "-44px 0px -40% 0px", threshold: 0 },
     );
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
