@@ -205,8 +205,12 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
   // ─── Effects ───
 
   useEffect(() => {
-    if (tab === "topics" && activeTopic && topicRefs.current[activeTopic]) {
-      topicRefs.current[activeTopic]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (tab === "topics" && activeTopic) {
+      const el = topicRefs.current[activeTopic];
+      if (el) {
+        const top = el.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top, behavior: "smooth" });
+      }
     }
   }, [tab, activeTopic]);
 
@@ -219,24 +223,42 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
   // 侧边栏导航 - 当前激活的 section
   const [activeNav, setActiveNav] = useState<string | null>(null);
+  const activeNavRef = useRef<string | null>(null);
+  const navClickTimeRef = useRef(0);
+
+  const scrollToSection = (id: string) => {
+    activeNavRef.current = id;
+    setActiveNav(id);
+    navClickTimeRef.current = Date.now();
+    const el = document.getElementById(id);
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     if (sectionIds.length === 0) return;
     const els = sectionIds.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
     if (els.length === 0) return;
 
+    activeNavRef.current = sectionIds[0];
     setActiveNav(sectionIds[0]);
     const observer = new IntersectionObserver(
       (entries) => {
+        if (Date.now() - navClickTimeRef.current < 1000) return;
         let best: IntersectionObserverEntry | null = null;
         for (const e of entries) {
           if (e.isIntersecting && (!best || e.boundingClientRect.top > best.boundingClientRect.top)) {
             best = e;
           }
         }
-        if (best) setActiveNav(best.target.id);
+        if (best && best.target.id !== activeNavRef.current) {
+          activeNavRef.current = best.target.id;
+          setActiveNav(best.target.id);
+        }
       },
-      { rootMargin: "-90px 0px -65% 0px" },
+      { rootMargin: "-44px 0px -60% 0px" },
     );
     els.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
@@ -297,10 +319,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                 return (
                   <button
                     key={id}
-                    onClick={() => {
-                      setActiveNav(id);
-                      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    }}
+                    onClick={() => scrollToSection(id)}
                     className={`block w-full truncate text-left text-sm leading-8 transition-colors ${
                       isActive
                         ? "border-l-2 border-blue-400 -ml-[14px] pl-[12px] text-blue-400 font-medium"
