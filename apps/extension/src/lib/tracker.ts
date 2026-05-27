@@ -141,3 +141,12 @@ export async function flushAll(): Promise<void> {
 export function isTracked(tabId: number): boolean {
   return tracked.has(tabId);
 }
+
+/**
+ * 更新当前追踪 tab 的页面标题（页面完全加载后标题可能变化）
+ */
+export async function updateTitle(tabId: number, newTitle: string): Promise<void> {
+  const state = tracked.get(tabId);
+  if (!state || !newTitle) return;
+  await db.pages.update(state.recordId, { title: newTitle });
+}

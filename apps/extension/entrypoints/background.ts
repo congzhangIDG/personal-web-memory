@@ -5,6 +5,7 @@ import {
   pauseAll,
   flushAll,
   isTracked,
+  updateTitle,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
 import { uploadDigest } from "@/src/lib/uploader";
@@ -74,13 +75,20 @@ export default defineBackground(() => {
     }
   });
 
-  // --- tab URL 变化（导航完成）---
+  // --- tab URL 变化 / 页面加载完成 ---
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    if (!changeInfo.url) return;
-    if (!tab.url) return;
+    if (changeInfo.url) {
+      // URL 变化：创建新记录
+      if (!tab.url) return;
+      const isActive = tab.active;
+      await startTracking(tabId, tab.url, tab.title ?? "", isActive);
+      return;
+    }
 
-    const isActive = tab.active;
-    await startTracking(tabId, tab.url, tab.title ?? "", isActive);
+    // 页面完全加载后更新标题（解决 SPA / 微信文章等标题延迟设置的问题）
+    if (changeInfo.status === "complete" && tab.title && isTracked(tabId)) {
+      await updateTitle(tabId, tab.title);
+    }
   });
 
   // --- tab 关闭 ---
