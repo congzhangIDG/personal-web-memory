@@ -265,33 +265,29 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(106,125,255,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(86,211,154,0.12),_transparent_22%),linear-gradient(180deg,_#08101d_0%,_#0b1220_42%,_#111827_100%)] text-white">
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-row gap-8 px-6 py-10 lg:px-10">
-        {/* Header */}
-        <section className="space-y-4">
-          <div className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-4 py-1 text-sm text-white/72 backdrop-blur-md">
-            Personal Web Memory · Dashboard
-          </div>
-          <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-            个人浏览记忆面板
-          </h1>
-        </section>
-
-        {/* Tabs */}
-        <div className="flex gap-1 rounded-xl bg-white/8 p-1 backdrop-blur-md w-fit">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`rounded-lg px-5 py-2 text-sm font-medium transition ${tab === t.key ? "bg-white text-slate-900 shadow" : "text-white/70 hover:text-white"}`}
-            >
-              {t.label}
-            </button>
-          ))}
+      {/* 顶部导航条 */}
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#08101d]/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-2 lg:px-10">
+          <span className="text-sm font-medium text-white/70">PWM</span>
+          <nav className="flex gap-1 rounded-lg bg-white/8 p-0.5">
+            {tabs.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${tab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-white/60 hover:text-white"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </nav>
         </div>
+      </header>
+
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-row gap-8 px-6 py-6 lg:px-10">
 
         {/* 侧边栏导航 */}
         {(tab === "timeline" || tab === "topics") && sectionIds.length > 0 && (
-          <nav className="sticky top-24 hidden h-fit w-40 shrink-0 lg:block">
+          <nav className="sticky top-14 hidden h-fit w-40 shrink-0 lg:block">
             <div className="space-y-0.5 border-l-2 border-white/10 pl-3">
               {sectionIds.map((id) => {
                 const label = tab === "timeline"
