@@ -45,6 +45,12 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatDateTime(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function formatDate(date: string): string {
   const value = new Date(`${date}T00:00:00`);
   return new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "long" }).format(value);
@@ -86,11 +92,14 @@ function PageCard({ page, onToggleFavorite, onTopicClick }: { page: PageItem; on
             <span>·</span>
             <span className="truncate">{page.domain}</span>
           </div>
-          <h4 className="text-base font-medium text-slate-900">
-            <a href={page.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 hover:underline">
-              {page.title || page.url}
-            </a>
-          </h4>
+          <div className="flex items-start justify-between gap-2">
+            <h4 className="text-base font-medium text-slate-900 min-w-0">
+              <a href={page.url} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 hover:underline">
+                {page.title || page.url}
+              </a>
+            </h4>
+            <span className="shrink-0 text-xs text-slate-400 leading-6">{formatDateTime(page.visitedAt)}</span>
+          </div>
           {summary && (
             <p className="text-sm leading-6 text-slate-600">
               {displaySummary}
