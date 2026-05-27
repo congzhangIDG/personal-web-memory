@@ -118,6 +118,8 @@ export type UploadDigestRequest = z.infer<typeof uploadDigestRequestSchema>;
 export const uploadDigestResponseSchema = z.object({
   ok: z.literal(true),
   date: dateStringSchema,
+  pagesUpserted: z.number().optional(),
+  message: z.string().optional(),
 });
 export type UploadDigestResponse = z.infer<typeof uploadDigestResponseSchema>;
 

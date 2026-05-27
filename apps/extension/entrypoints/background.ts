@@ -44,11 +44,11 @@ async function generateAndUploadDigest(dateStr: string) {
   }
 
   const uploaded = await uploadDigest(digest);
-  if (!uploaded) {
+  if (!uploaded.ok) {
     return {
       ok: false,
       reason: "upload_failed",
-      message: "摘要已生成，但上传失败，请检查 API 地址与服务状态",
+      message: uploaded.message ?? "摘要已生成，但上传失败，请检查 API 地址与服务状态",
       date: digest.date,
     };
   }
@@ -164,6 +164,20 @@ export default defineBackground(() => {
           return { ok: true, result };
         } catch (e) {
           console.error("[PWM] Generate today digest failed", e);
+          return { ok: false, error: String(e) };
+        }
+      })();
+    }
+
+    // 仅刷新 tracker 内存数据到 Dexie（供 Options 页分步编排用）
+    if (message?.type === "pwm:flush-trackers") {
+      return (async () => {
+        try {
+          await syncCurrentActiveTab();
+          await flushAll();
+          return { ok: true };
+        } catch (e) {
+          console.error("[PWM] Flush trackers failed", e);
           return { ok: false, error: String(e) };
         }
       })();

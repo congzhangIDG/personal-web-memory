@@ -14,15 +14,20 @@ async function getSettings() {
   return db.settings.get("singleton");
 }
 
+export interface UploadResult {
+  ok: boolean;
+  message?: string;
+  pagesUpserted?: number;
+}
+
 /**
  * 上传一份 DailyDigest 到后端，成功后更新 lastUploadedDate。
- * @returns true 表示上传成功
  */
-export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
+export async function uploadDigest(digest: DailyDigest): Promise<UploadResult> {
   const settings = await getSettings();
   if (settings?.enabled === false) {
     console.log("[PWM] Upload skipped because auto upload is disabled");
-    return false;
+    return { ok: false, message: "自动上传已关闭" };
   }
 
   const base = await getApiBase();
@@ -36,8 +41,9 @@ export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
     });
 
     if (!res.ok) {
-      console.error("[PWM] Upload failed", res.status, await res.text());
-      return false;
+      const text = await res.text();
+      console.error("[PWM] Upload failed", res.status, text);
+      return { ok: false, message: `HTTP ${res.status}: ${text.slice(0, 200)}` };
     }
 
     const data = (await res.json()) as UploadDigestResponse;
@@ -45,11 +51,12 @@ export async function uploadDigest(digest: DailyDigest): Promise<boolean> {
       await db.settings.update("singleton", {
         lastUploadedDate: digest.date,
       });
-      return true;
+      return { ok: true, pagesUpserted: data.pagesUpserted };
     }
-    return false;
+    return { ok: false, message: data.message ?? "服务端返回失败" };
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error("[PWM] Upload error", err);
-    return false;
+    return { ok: false, message: msg };
   }
 }

@@ -1,9 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { db } from "@/src/lib/db";
 import { DEFAULT_BLACKLIST } from "@/src/lib/defaults";
-import type { Settings } from "@pwm/shared";
+import { buildDailyDigest } from "@/src/lib/aggregator";
+import { uploadDigest } from "@/src/lib/uploader";
+import type { PageRecord, Settings } from "@pwm/shared";
 
 type Tab = "home" | "blacklist" | "prefs" | "about";
+
+type LogEntry = {
+  time: string;
+  message: string;
+  level: "info" | "success" | "error";
+};
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "首页" },
@@ -24,13 +32,38 @@ const defaultForm: FormState = {
   recordIncognito: false,
 };
 
+function formatDuration(ms?: number): string {
+  if (!ms || ms <= 0) return "-";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}秒`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}分${sec % 60}秒`;
+  const hr = Math.floor(min / 60);
+  return `${hr}时${min % 60}分`;
+}
+
 function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [form, setForm] = useState<FormState>(defaultForm);
   const [status, setStatus] = useState("正在读取设置...");
   const [isSaving, setIsSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadLogs, setUploadLogs] = useState<LogEntry[]>([]);
+  const logEndRef = useRef<HTMLDivElement>(null);
   const [newBlacklistItem, setNewBlacklistItem] = useState("");
+  const [pendingPages, setPendingPages] = useState<PageRecord[]>([]);
+  const [pendingExpanded, setPendingExpanded] = useState(false);
+
+  const loadPendingPages = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const startOfDay = new Date(today).getTime();
+    const endOfDay = startOfDay + 86400000;
+    const pages = await db.pages
+      .where("visitedAt")
+      .between(startOfDay, endOfDay, true, false)
+      .toArray();
+    setPendingPages(pages);
+  }, []);
 
   useEffect(() => {
     async function loadSettings() {
@@ -47,13 +80,23 @@ function App() {
       setStatus("设置已加载");
     }
     void loadSettings();
-  }, []);
+    void loadPendingPages();
+  }, [loadPendingPages]);
 
   const statusTone = useMemo(() => {
     return form.enabled
       ? { dot: "#22c55e", text: "自动上传已开启" }
       : { dot: "#f59e0b", text: "自动上传已暂停" };
   }, [form.enabled]);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [uploadLogs]);
+
+  function appendLog(message: string, level: LogEntry["level"] = "info") {
+    const time = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    setUploadLogs((prev) => [...prev, { time, message, level }]);
+  }
 
   async function handleSave() {
     setIsSaving(true);
@@ -81,19 +124,49 @@ function App() {
 
   async function handleGenerateTodayDigest() {
     setIsGenerating(true);
-    setStatus("正在生成今日工作记忆...");
+    setUploadLogs([]);
+    const today = new Date().toISOString().slice(0, 10);
+
     try {
-      const result = await browser.runtime.sendMessage({
-        type: "pwm:generate-today-digest",
-      });
-      if (!result?.ok) {
-        setStatus(result?.message ?? "生成失败，请稍后重试");
+      // Step 1: flush tracker 内存数据到 Dexie
+      appendLog("正在同步活跃标签页计时数据...");
+      await browser.runtime.sendMessage({ type: "pwm:flush-trackers" });
+      appendLog("活跃标签页数据已同步", "success");
+
+      // Step 2: 本地聚合
+      appendLog(`正在聚合 ${today} 的本地浏览记录...`);
+      const digest = await buildDailyDigest(today);
+      if (!digest) {
+        appendLog("今日无可上传的浏览记录", "error");
+        setStatus("今日无浏览记录");
         return;
       }
-      setForm((c) => ({ ...c, lastUploadedDate: result.date }));
-      setStatus(result.message ?? "今日工作记忆已生成并上传");
+      appendLog(
+        `聚合完成：${digest.pages.length} 个页面，${digest.topDomains.length} 个域名`,
+        "success",
+      );
+
+      // Step 3: 上传到服务器
+      appendLog(`正在上传到 ${form.apiBaseUrl || "默认地址"}...`);
+      const result = await uploadDigest(digest);
+      if (!result.ok) {
+        appendLog(`上传失败: ${result.message}`, "error");
+        setStatus(result.message ?? "上传失败");
+        return;
+      }
+      appendLog(
+        `上传成功！服务端已接收 ${result.pagesUpserted ?? digest.pages.length} 条记录`,
+        "success",
+      );
+
+      // Step 4: 更新本地状态
+      await db.settings.update("singleton", { lastUploadedDate: today });
+      setForm((c) => ({ ...c, lastUploadedDate: today }));
+      setStatus("今日工作记忆已生成并上传");
+      appendLog("本地上传时间已更新", "success");
     } catch (error) {
-      console.error("[PWM] Generate today digest failed", error);
+      const msg = error instanceof Error ? error.message : String(error);
+      appendLog(`错误: ${msg}`, "error");
       setStatus("生成失败，请检查扩展权限、API 地址和后台服务状态");
     } finally {
       setIsGenerating(false);
@@ -167,6 +240,65 @@ function App() {
                 >
                   {isGenerating ? "生成中..." : "立即生成并上传"}
                 </button>
+
+                {uploadLogs.length > 0 && (
+                  <div className="uploadLogBox">
+                    {uploadLogs.map((log, i) => (
+                      <div key={i} className={`logEntry logEntry--${log.level}`}>
+                        <span className="logTime">{log.time}</span>
+                        <span className="logMsg">{log.message}</span>
+                      </div>
+                    ))}
+                    <div ref={logEndRef} />
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="sectionBlock">
+              <div className="sectionTitle">
+                今日本地记录
+                {pendingPages.length > 0 && (
+                  <span className="countBadge">{pendingPages.length}</span>
+                )}
+              </div>
+              <div className="helperCard">
+                {pendingPages.length === 0 ? (
+                  <div className="helperText">今日暂无浏览记录</div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="expandBtn"
+                      onClick={() => setPendingExpanded((v) => !v)}
+                    >
+                      {pendingExpanded ? "收起列表 ▲" : `查看全部 ${pendingPages.length} 条 ▼`}
+                    </button>
+                    {pendingExpanded && (
+                      <ul className="pendingList">
+                        {pendingPages.map((p) => (
+                          <li key={p.id ?? p.visitedAt} className="pendingItem">
+                            {p.favicon && <img src={p.favicon} className="pendingFavicon" alt="" />}
+                            <div className="pendingInfo">
+                              <a
+                                className="pendingTitle"
+                                href={p.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={p.url}
+                              >
+                                {p.title || p.domain}
+                              </a>
+                              <span className="pendingMeta">
+                                {p.domain} · {formatDuration(p.durationMs)}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
             </section>
 

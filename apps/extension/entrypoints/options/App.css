@@ -381,3 +381,124 @@
   line-height: 1.7;
   color: rgba(229, 238, 251, 0.6);
 }
+
+/* Upload progress log */
+.uploadLogBox {
+  margin-top: 10px;
+  max-height: 160px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: "SF Mono", "Fira Code", monospace;
+}
+
+.logEntry {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  line-height: 1.5;
+}
+
+.logTime {
+  color: rgba(229, 238, 251, 0.4);
+  flex-shrink: 0;
+}
+
+.logMsg {
+  word-break: break-all;
+}
+
+.logEntry--info .logMsg {
+  color: rgba(229, 238, 251, 0.8);
+}
+
+.logEntry--success .logMsg {
+  color: #4ade80;
+}
+
+.logEntry--error .logMsg {
+  color: #f87171;
+}
+
+/* ── 今日本地记录 ── */
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: rgba(88, 120, 255, 0.6);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.expandBtn {
+  background: none;
+  border: none;
+  color: rgba(160, 190, 255, 0.9);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.expandBtn:hover {
+  color: #fff;
+}
+
+.pendingList {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pendingItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pendingItem:last-child {
+  border-bottom: none;
+}
+
+.pendingFavicon {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pendingInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pendingTitle {
+  color: #e5eefb;
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pendingTitle:hover {
+  color: #93b4ff;
+  text-decoration: underline;
+}
+
+.pendingMeta {
+  color: rgba(229, 238, 251, 0.45);
+  font-size: 11px;
+}

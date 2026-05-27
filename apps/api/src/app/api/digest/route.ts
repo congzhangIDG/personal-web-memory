@@ -61,73 +61,26 @@ export async function POST(req: NextRequest) {
 
   const dedupedPages = [...urlMap.values()];
 
-  // ── 2. 生成主题标签 ──
-  const topicMap = dedupedPages.length > 0
-    ? await generateTopicsForPages(
-        dedupedPages.map((p) => ({ url: p.url, title: p.title, domain: p.domain })),
-      )
-    : new Map<string, string[]>();
-
-  // ── 3. 生成页面摘要（先于日总结，确保 digest summary 能引用到）──
-  for (const p of dedupedPages) {
-    if (!p.summary?.trim()) {
-      const pageSummary = await generatePageSummary(p.url, p.title);
-      if (pageSummary) p.summary = pageSummary;
-    }
-  }
-
-  // ── 4. 生成日总结（含各页面摘要信息）──
-  const resolvedSummary = summary.trim()
-    ? summary.trim()
-    : await getDigestSummary({
-        date,
-        pageCount,
-        totalDurationMs,
-        topDomains,
-        pages: dedupedPages.map((p) => ({
-          title: p.title,
-          url: p.url,
-          domain: p.domain,
-          durationMs: p.durationMs,
-          summary: p.summary,
-        })),
-      });
-
-  // ── 5. 合并该日所有页面的主题标签 ──
-  const allTopics = [
-    ...new Set(
-      dedupedPages.flatMap((p) => {
-        const generated = topicMap.get(p.url) ?? [];
-        return p.topics.length > 0 ? p.topics : generated;
-      }),
-    ),
-  ].slice(0, 20);
-
-  // ── 6. 写入 digest ──
+  // ── 2. 先入库（确保数据不丢失）──
   await prisma.dailyDigest.upsert({
     where: { date },
     create: {
       date,
-      summary: resolvedSummary,
+      summary: summary.trim() || "",
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
-      topics: JSON.stringify(allTopics),
+      topics: JSON.stringify(topics ?? []),
     },
     update: {
-      summary: resolvedSummary,
+      summary: summary.trim() || undefined,
       pageCount,
       totalDurationMs,
       topDomains: JSON.stringify(topDomains),
-      topics: JSON.stringify(allTopics),
     },
   });
 
-  // ── 7. 写入各页面 ──
   for (const p of dedupedPages) {
-    const generatedTopics = topicMap.get(p.url) ?? [];
-    const finalTopics = p.topics.length > 0 ? p.topics : generatedTopics;
-
     await prisma.pageVisit.upsert({
       where: { url_date: { url: p.url, date } },
       create: {
@@ -136,8 +89,8 @@ export async function POST(req: NextRequest) {
         domain: p.domain,
         visitedAt: p.visitedAt,
         durationMs: p.durationMs,
-        summary: p.summary,
-        topics: JSON.stringify(finalTopics),
+        summary: p.summary || "",
+        topics: JSON.stringify(p.topics ?? []),
         favorited: p.favorited,
         date,
       },
@@ -145,12 +98,80 @@ export async function POST(req: NextRequest) {
         title: p.title,
         visitedAt: p.visitedAt,
         durationMs: p.durationMs,
-        topics: JSON.stringify(finalTopics),
       },
     });
   }
 
-  const res: UploadDigestResponse = { ok: true, date };
+  // ── 3. AI 补全（失败不影响已入库数据）──
+  try {
+    // 3a. 生成主题标签
+    const topicMap = dedupedPages.length > 0
+      ? await generateTopicsForPages(
+          dedupedPages.map((p) => ({ url: p.url, title: p.title, domain: p.domain })),
+        )
+      : new Map<string, string[]>();
+
+    // 3b. 生成页面摘要
+    for (const p of dedupedPages) {
+      if (!p.summary?.trim()) {
+        const pageSummary = await generatePageSummary(p.url, p.title);
+        if (pageSummary) p.summary = pageSummary;
+      }
+    }
+
+    // 3c. 生成日总结
+    const resolvedSummary = summary.trim()
+      ? summary.trim()
+      : await getDigestSummary({
+          date,
+          pageCount,
+          totalDurationMs,
+          topDomains,
+          pages: dedupedPages.map((p) => ({
+            title: p.title,
+            url: p.url,
+            domain: p.domain,
+            durationMs: p.durationMs,
+            summary: p.summary,
+          })),
+        });
+
+    // 3d. 合并主题标签
+    const allTopics = [
+      ...new Set(
+        dedupedPages.flatMap((p) => {
+          const generated = topicMap.get(p.url) ?? [];
+          return p.topics.length > 0 ? p.topics : generated;
+        }),
+      ),
+    ].slice(0, 20);
+
+    // 3e. 回写 AI 结果到 DB
+    await prisma.dailyDigest.update({
+      where: { date },
+      data: {
+        summary: resolvedSummary,
+        topics: JSON.stringify(allTopics),
+      },
+    });
+
+    for (const p of dedupedPages) {
+      const generatedTopics = topicMap.get(p.url) ?? [];
+      const finalTopics = p.topics.length > 0 ? p.topics : generatedTopics;
+
+      await prisma.pageVisit.update({
+        where: { url_date: { url: p.url, date } },
+        data: {
+          summary: p.summary || undefined,
+          topics: JSON.stringify(finalTopics),
+        },
+      });
+    }
+  } catch (aiError) {
+    console.error("[digest] AI enrichment failed, raw data preserved:", aiError);
+  }
+
+  const res: UploadDigestResponse = { ok: true, date, pagesUpserted: dedupedPages.length };
   return NextResponse.json(res, { status: 200 });
 }
 
