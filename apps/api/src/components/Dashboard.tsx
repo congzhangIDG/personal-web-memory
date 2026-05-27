@@ -457,6 +457,55 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
         {/* 每日总结 Tab */}
         {tab === "digest" && (
           <div className="space-y-6">
+            {/* 标签云 */}
+            {digests.length > 0 && (() => {
+              const topicCounts: Record<string, number> = {};
+              const domainCounts: Record<string, number> = {};
+              digests.forEach((d) => {
+                d.topics.forEach((t) => { topicCounts[t] = (topicCounts[t] || 0) + 1; });
+                d.topDomains.forEach((dom) => { domainCounts[dom.domain] = (domainCounts[dom.domain] || 0) + 1; });
+              });
+              const sortedTopicCloud = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
+              const sortedDomainCloud = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
+              const maxTopic = sortedTopicCloud[0]?.[1] || 1;
+              const maxDomain = sortedDomainCloud[0]?.[1] || 1;
+              const cloudSize = (count: number, max: number) => {
+                const ratio = count / max;
+                if (ratio > 0.7) return "text-base font-semibold";
+                if (ratio > 0.4) return "text-sm font-medium";
+                return "text-xs";
+              };
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {sortedTopicCloud.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                      <h4 className="text-xs font-medium text-white/50 mb-2">主题标签云</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sortedTopicCloud.slice(0, 30).map(([tag, count]) => (
+                          <span key={tag} className={`rounded-full bg-blue-500/15 px-2.5 py-0.5 text-blue-300 ${cloudSize(count, maxTopic)}`}>
+                            {tag}
+                            <span className="ml-1 text-blue-300/50">×{count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {sortedDomainCloud.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                      <h4 className="text-xs font-medium text-white/50 mb-2">Domains 标签云</h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sortedDomainCloud.slice(0, 30).map(([domain, count]) => (
+                          <span key={domain} className={`rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-emerald-300 ${cloudSize(count, maxDomain)}`}>
+                            {domain}
+                            <span className="ml-1 text-emerald-300/50">×{count}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {digests.length > 0 ? (
               digests.map((d) => (
                 <article key={d.id} className="rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-md space-y-4">
