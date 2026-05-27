@@ -245,26 +245,22 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     activeNavRef.current = sectionIds[0];
     setActiveNav(sectionIds[0]);
     const handleScroll = () => {
-      if (Date.now() - navClickTimeRef.current < 1000) return;
-      const headerOffset = 52; // sticky header height
+      if (Date.now() - navClickTimeRef.current < 1200) return;
       let current: string | null = null;
       for (const el of els) {
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= headerOffset + 8) {
+        if (el.getBoundingClientRect().top <= 90) {
           current = el.id;
         }
       }
-      // 如果没有任何 section 到达顶部，取第一个
       if (!current) current = els[0]?.id ?? null;
       if (current && current !== activeNavRef.current) {
         activeNavRef.current = current;
         setActiveNav(current);
       }
     };
-    const scrollContainer = document.querySelector("[data-scroll-container]") || window;
-    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, [sectionIds]);
 
   const toggleFavorite = async (id: number) => {
