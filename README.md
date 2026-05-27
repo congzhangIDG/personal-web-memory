@@ -78,4 +78,4 @@ pnpm build:ext
 
 ## License
 
-当前仓库尚未添加独立 License 文件；在开源发布前请补充明确许可证。
+MIT License — 详见 [LICENSE](./LICENSE)。

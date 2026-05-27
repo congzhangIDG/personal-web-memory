@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev:ext": "pnpm -F @pwm/extension dev",
-    "dev:api": "pnpm -F @pwm/api dev",
+    "dev:api": "cd apps/api && node node_modules/next/dist/bin/next dev",
     "build:ext": "pnpm -F @pwm/extension build",
-    "build:api": "pnpm -F @pwm/api build"
+    "build:api": "cd apps/api && node node_modules/next/dist/bin/next build"
   }
 }

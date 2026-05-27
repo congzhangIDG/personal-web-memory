@@ -111,6 +111,113 @@ async function generateAiSummary(input: DigestSummaryInput): Promise<string | nu
   return content || null;
 }
 
+/**
+ * 抓取网页内容并生成事实摘要（≤500 字）
+ *
+ * 策略：1) LLM 摘要（优先）；2) 直接截取前 500 字（回退）
+ * 不会编造内容——摘要内容完全来自页面原始文本。
+ */
+async function generateAiPageSummary(
+  title: string,
+  content: string,
+): Promise<string | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const apiBase = process.env.OPENAI_API_BASE;
+  const modelId = process.env.OPENAI_MODEL_ID;
+
+  if (!apiKey || !apiBase || !modelId) return null;
+
+  const prompt = [
+    "以下是一段网页正文内容。请生成一段简洁的摘要。",
+    "要求：",
+    "  1. 完全基于提供的文本，不要添加原文没有的信息",
+    "  2. 使用简体中文",
+    "  3. 字数不超过 500 字",
+    "  4. 用平实的叙述性语言，不要用'本文介绍了'、'该页面讨论了'等套话",
+    "",
+    `标题：${title}`,
+    "",
+    `正文片段：\n${content.slice(0, 3000)}`,
+  ].join("\n");
+
+  try {
+    const response = await fetch(`${apiBase}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: modelId,
+        temperature: 0.3,
+        max_tokens: 800,
+        messages: [
+          {
+            role: "system",
+            content:
+              "你是一个客观的网页摘要助手。只根据提供的文本生成摘要，不添加任何外部知识或推断。",
+          },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    return content?.slice(0, 500) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 为单个页面生成事实摘要。
+ * 1) 尝试抓取页面 HTML、提取正文、调用 LLM 摘要
+ * 2) LLM 不可用时直接截取前 500 字
+ * 3) 完全无法获取内容时返回 null
+ */
+export async function generatePageSummary(
+  url: string,
+  title: string,
+): Promise<string | null> {
+  let html: string;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; PWM-SummaryBot/1.0; +https://github.com/your-repo)",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) return null;
+    html = await response.text();
+  } catch {
+    return null;
+  }
+
+  // 移除 script/style 标签及内容，再剥离 HTML 标签
+  const text = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (text.length < 30) return null;
+
+  const excerpt = text.slice(0, 3000);
+
+  const llmSummary = await generateAiPageSummary(title, excerpt);
+  if (llmSummary) return llmSummary;
+
+  return excerpt.slice(0, 500).trim();
+}
+
 export async function getDigestSummary(input: DigestSummaryInput): Promise<string> {
   try {
     const aiSummary = await generateAiSummary(input);

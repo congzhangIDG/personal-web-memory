@@ -65,7 +65,16 @@ function renderMarkdownLinks(text: string) {
   });
 }
 
+const SUMMARY_TRUNCATE = 100;
+
 function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite: (id: number) => void }) {
+  const [showFullSummary, setShowFullSummary] = useState(false);
+  const summary = page.summary || "";
+  const needsTruncation = summary.length > SUMMARY_TRUNCATE;
+  const displaySummary = needsTruncation && !showFullSummary
+    ? summary.slice(0, SUMMARY_TRUNCATE) + "…"
+    : summary;
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -82,8 +91,18 @@ function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite
               {page.title || page.url}
             </a>
           </h4>
-          {page.summary && (
-            <p className="text-sm leading-6 text-slate-600">{page.summary}</p>
+          {summary && (
+            <p className="text-sm leading-6 text-slate-600">
+              {displaySummary}
+              {needsTruncation && (
+                <button
+                  onClick={() => setShowFullSummary(!showFullSummary)}
+                  className="ml-1 text-blue-500 hover:text-blue-700 text-xs font-medium"
+                >
+                  {showFullSummary ? "收起" : "更多"}
+                </button>
+              )}
+            </p>
           )}
           {page.topics.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -97,7 +116,11 @@ function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite
         </div>
         <button
           onClick={() => onToggleFavorite(page.id)}
-          className="shrink-0 p-1 text-xl"
+          className={`shrink-0 rounded-lg p-1.5 text-xl transition-all duration-150 ${
+            page.favorited
+              ? "bg-amber-100 text-amber-500 shadow-sm ring-1 ring-amber-300 hover:bg-amber-200"
+              : "text-slate-300 hover:bg-amber-50 hover:text-amber-400 hover:ring-1 hover:ring-amber-200"
+          }`}
           title={page.favorited ? "取消收藏" : "收藏"}
         >
           {page.favorited ? "⭐" : "☆"}

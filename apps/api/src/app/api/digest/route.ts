@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getDigestSummary } from "@/lib/summary";
+import { getDigestSummary, generatePageSummary } from "@/lib/summary";
+import { generateTopicsForPages } from "@/lib/topics";
 import {
   uploadDigestRequestSchema,
   type UploadDigestResponse,
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
         })),
       });
 
+  // 1) 先创建/更新 digest（确保外键存在，PageVisit 依赖它）
   await prisma.dailyDigest.upsert({
     where: { date },
     create: {
@@ -55,8 +57,8 @@ export async function POST(req: NextRequest) {
     },
   });
 
+
   if (pages && pages.length > 0) {
-    // 按 URL 去重：累计时长，取最后访问时间
     const urlMap = new Map<string, {
       url: string;
       title: string;
@@ -92,7 +94,20 @@ export async function POST(req: NextRequest) {
 
     const dedupedPages = [...urlMap.values()];
 
+    const topicMap = await generateTopicsForPages(
+      dedupedPages.map((p) => ({ url: p.url, title: p.title, domain: p.domain })),
+    );
+
     for (const p of dedupedPages) {
+      // 自动生成页面摘要（仅对空 summary 生效）
+      if (!p.summary?.trim()) {
+        const pageSummary = await generatePageSummary(p.url, p.title);
+        if (pageSummary) p.summary = pageSummary;
+      }
+
+      const generatedTopics = topicMap.get(p.url) ?? [];
+      const finalTopics = p.topics.length > 0 ? p.topics : generatedTopics;
+
       await prisma.pageVisit.upsert({
         where: { url_date: { url: p.url, date } },
         create: {
@@ -102,7 +117,7 @@ export async function POST(req: NextRequest) {
           visitedAt: p.visitedAt,
           durationMs: p.durationMs,
           summary: p.summary,
-          topics: JSON.stringify(p.topics),
+          topics: JSON.stringify(finalTopics),
           favorited: p.favorited,
           date,
         },
@@ -110,9 +125,28 @@ export async function POST(req: NextRequest) {
           title: p.title,
           visitedAt: p.visitedAt,
           durationMs: { increment: p.durationMs },
+          topics: JSON.stringify(finalTopics),
         },
       });
     }
+
+    // 3) 重新聚合该日所有页面的 topics（保证多次上传不覆盖）
+    const allDatePages = await prisma.pageVisit.findMany({
+      where: { date },
+      select: { topics: true },
+    });
+    const allDateTopics = [
+      ...new Set(
+        allDatePages.flatMap((p) => {
+          try { return JSON.parse(p.topics) as string[]; } catch { return []; }
+        }),
+      ),
+    ].slice(0, 20);
+
+    await prisma.dailyDigest.update({
+      where: { date },
+      data: { topics: JSON.stringify(allDateTopics) },
+    });
   }
 
   const res: UploadDigestResponse = { ok: true, date };
