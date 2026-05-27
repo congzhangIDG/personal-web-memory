@@ -1,4 +1,4 @@
-# Personal Web Memory
+<img width="1427" height="798" alt="image" src="https://github.com/user-attachments/assets/c4146851-709e-4fe4-be78-ce792a8e4e04" /># Personal Web Memory
 
 一句话说明：Personal Web Memory 是一个面向希望沉淀日常浏览与学习轨迹的个人用户的浏览记忆系统，通过 **WXT 扩展采集本地浏览行为、按日聚合为 Daily Digest、再由 Next.js + Prisma + SQLite Dashboard 展示并可选生成 AI 摘要**，帮助用户把碎片化网页访问转成可回顾的个人知识记录。
 
@@ -62,8 +62,10 @@ pnpm dev:ext
 - **学习记录**：追踪一天内阅读了哪些技术文档、在哪些域名停留最久
 - **研发复盘**：把 OAuth、RAG、Next.js 等分散浏览轨迹汇总成每日工作摘要
 - **个人知识归档**：用 Dashboard 回看最近 30 天的关注主题变化
+
 <img width="1441" height="885" alt="image" src="https://github.com/user-attachments/assets/46fc185e-70fd-4cd2-a6a8-7e70d54f24b1" />
-<img width="1636" height="893" alt="image" src="https://github.com/user-attachments/assets/fa78fd7d-0c23-4aec-afea-e905ac8dbf6c" />
+<img width="1427" height="798" alt="image" src="https://github.com/user-attachments/assets/d3bc9504-1578-4b67-8772-479506c5e23e" />
+
 <img width="1283" height="763" alt="image" src="https://github.com/user-attachments/assets/9378005d-1265-4c14-857b-2d9945c47dd2" />
 <img width="1434" height="711" alt="image" src="https://github.com/user-attachments/assets/597ef27d-36cd-46e0-b735-e74cd780e0d0" />
 
