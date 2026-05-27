@@ -7,6 +7,7 @@ type SettingItem = {
   label: string;
   description: string;
   value: string;
+  defaultValue?: string;
 };
 
 export default function SettingsPage() {
@@ -14,6 +15,7 @@ export default function SettingsPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [showDefaults, setShowDefaults] = useState<Record<string, boolean>>({});
 
   // 加载设置
   useEffect(() => {
@@ -79,8 +81,27 @@ export default function SettingsPage() {
               value={item.value}
               onChange={(e) => handleChange(item.key, e.target.value)}
               rows={5}
-              className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y"
+              placeholder={item.defaultValue ? "留空则使用内置缺省值" : ""}
+              className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y font-mono"
             />
+            {item.defaultValue && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowDefaults((s) => ({ ...s, [item.key]: !s[item.key] }))
+                  }
+                  className="text-xs text-white/40 hover:text-blue-400 transition"
+                >
+                  {showDefaults[item.key] ? "收起内置缺省值 ▲" : "查看内置缺省值 ▼"}
+                </button>
+                {showDefaults[item.key] && (
+                  <pre className="mt-2 rounded-lg border border-white/10 bg-black/30 p-3 text-xs text-white/60 font-mono whitespace-pre-wrap max-h-48 overflow-auto">
+                    {item.defaultValue}
+                  </pre>
+                )}
+              </div>
+            )}
           </section>
         ))}
 

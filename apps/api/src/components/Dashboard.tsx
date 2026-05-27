@@ -171,8 +171,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     if (!window.confirm("确定移除这条记录？")) return;
     const res = await fetch(`/api/pages/${id}`, { method: "DELETE" });
     if (!res.ok) return;
-    setPageList((prev) => prev.filter((p) => p.id !== id));
-    setFavList((prev) => prev.filter((p) => p.id !== id));
+    window.location.reload();
   };
 
   const [regenerating, setRegenerating] = useState<string | null>(null);
@@ -341,7 +340,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
               </button>
             ))}
           </nav>
-          <a href="/settings" className="ml-auto text-sm text-white/40 hover:text-white transition-colors">
+          <a href="/settings" className="ml-auto text-xl text-white/40 hover:text-white transition-colors" title="系统设置">
             ⚙️
           </a>
         </div>

@@ -21,8 +21,8 @@ export type PageInput = {
 
 // ───────────────────────── 规则匹配 ─────────────────────────
 
-/** 域名 → 标签映射 */
-const domainTagMap: Record<string, string[]> = {
+/** 域名 → 标签映射（内置缺省值，可在 /settings 中覆盖） */
+export const DEFAULT_DOMAIN_TAG_MAP: Record<string, string[]> = {
   "github.com":           ["GitHub", "开发"],
   "stackoverflow.com":    ["Stack Overflow", "开发"],
   "youtube.com":          ["YouTube", "视频"],
@@ -128,7 +128,7 @@ function getDomainTags(domain: string, overrides?: Record<string, string[]>): st
   // 先查自定义映射
   if (overrides?.[domain]) return [...overrides[domain]];
   // 再查默认映射
-  const exact = domainTagMap[domain];
+  const exact = DEFAULT_DOMAIN_TAG_MAP[domain];
   if (exact) return [...exact];
 
   // 子域名匹配：逐级回退
@@ -136,14 +136,14 @@ function getDomainTags(domain: string, overrides?: Record<string, string[]>): st
   for (let i = 0; i < parts.length - 1; i++) {
     const candidate = parts.slice(i).join(".");
     if (overrides?.[candidate]) return [...overrides[candidate]];
-    if (domainTagMap[candidate]) return [...domainTagMap[candidate]];
+    if (DEFAULT_DOMAIN_TAG_MAP[candidate]) return [...DEFAULT_DOMAIN_TAG_MAP[candidate]];
   }
 
   return [];
 }
 
-/** 从页面标题提取已知技术关键词 */
-const techKeywords = [
+/** 技术关键词列表（内置缺省值，可在 /settings 中覆盖） */
+export const DEFAULT_TECH_KEYWORDS = [
   "React", "Vue", "Nuxt", "Next.js", "Angular", "Svelte", "SolidJS",
   "Node", "Deno", "Bun",
   "TypeScript", "JavaScript", "Python", "Go", "Rust", "Java", "Kotlin",
@@ -163,7 +163,7 @@ const techKeywords = [
 ];
 
 function extractTitleTags(title: string, keywordsOverride?: string[]): string[] {
-  const keywords = keywordsOverride ?? techKeywords;
+  const keywords = keywordsOverride ?? DEFAULT_TECH_KEYWORDS;
   const found: string[] = [];
   for (const kw of keywords) {
     if (title.includes(kw)) {
