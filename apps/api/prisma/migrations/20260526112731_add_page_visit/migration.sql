@@ -19,3 +19,6 @@ CREATE INDEX "PageVisit_date_idx" ON "PageVisit"("date");
 
 -- CreateIndex
 CREATE INDEX "PageVisit_favorited_idx" ON "PageVisit"("favorited");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PageVisit_url_date_key" ON "PageVisit"("url", "date");
