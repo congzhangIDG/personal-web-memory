@@ -61,6 +61,11 @@ async function generateAndUploadDigest(dateStr: string) {
 }
 
 export default defineBackground(() => {
+  // --- 点击扩展图标打开设置 Tab（代替 popup）---
+  browser.action.onClicked.addListener(() => {
+    browser.tabs.create({ url: browser.runtime.getURL('/options.html') });
+  });
+
   // --- tab 激活（切换 tab）---
   browser.tabs.onActivated.addListener(async ({ tabId }) => {
     pauseAll();

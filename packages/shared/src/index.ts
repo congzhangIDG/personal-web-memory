@@ -92,14 +92,6 @@ export const settingsSchema = z.object({
   /** 上次成功上传的日期（YYYY-MM-DD） */
   lastUploadedDate: dateStringSchema.optional(),
 
-  // ---- LLM 配置（扩展端覆盖后端 .env） ----
-  /** OpenAI 兼容 API 地址，如 https://api.openai.com/v1 */
-  llmBaseUrl: z.string().optional(),
-  /** 模型 ID，如 gpt-4o-mini */
-  llmModel: z.string().optional(),
-  /** API Key（明文存储于扩展本地 IndexedDB） */
-  llmApiKey: z.string().optional(),
-
   // ---- 黑名单 ----
   // blacklist: 域名或 URL 通配符模式列表
   blacklist: z.array(z.string()).optional(),

@@ -2,11 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "@/src/lib/db";
 import type { Settings } from "@pwm/shared";
 
-type Tab = "home" | "llm" | "blacklist" | "prefs" | "about";
+type Tab = "home" | "blacklist" | "prefs" | "about";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "首页" },
-  { id: "llm", label: "LLM" },
   { id: "blacklist", label: "黑名单" },
   { id: "prefs", label: "偏好" },
   { id: "about", label: "关于" },
@@ -20,9 +19,6 @@ const defaultForm: FormState = {
   enabled: true,
   apiBaseUrl: "http://127.0.0.1:3000",
   lastUploadedDate: undefined,
-  llmBaseUrl: "https://openrouter.idgcapital.com/v1",
-  llmModel: "large",
-  llmApiKey: "EMPTY",
   blacklist: DEFAULT_BLACKLIST,
   uploadIntervalMin: 5,
   minDurationSec: 5,
@@ -44,9 +40,6 @@ function App() {
         enabled: s?.enabled ?? defaultForm.enabled,
         apiBaseUrl: s?.apiBaseUrl ?? defaultForm.apiBaseUrl,
         lastUploadedDate: s?.lastUploadedDate,
-        llmBaseUrl: s?.llmBaseUrl ?? defaultForm.llmBaseUrl,
-        llmModel: s?.llmModel ?? defaultForm.llmModel,
-        llmApiKey: s?.llmApiKey ?? defaultForm.llmApiKey,
         blacklist: s?.blacklist ?? defaultForm.blacklist,
         uploadIntervalMin: s?.uploadIntervalMin ?? defaultForm.uploadIntervalMin,
         minDurationSec: s?.minDurationSec ?? defaultForm.minDurationSec,
@@ -72,9 +65,6 @@ function App() {
         enabled: form.enabled,
         apiBaseUrl: (form.apiBaseUrl || "").trim() || undefined,
         lastUploadedDate: prev?.lastUploadedDate,
-        llmBaseUrl: (form.llmBaseUrl || "").trim() || undefined,
-        llmModel: (form.llmModel || "").trim() || undefined,
-        llmApiKey: (form.llmApiKey || "").trim() || undefined,
         blacklist: form.blacklist,
         uploadIntervalMin: form.uploadIntervalMin,
         minDurationSec: form.minDurationSec,
@@ -222,57 +212,6 @@ function App() {
               </div>
             </section>
           </>
-        )}
-
-        {/* LLM 配置 */}
-        {tab === "llm" && (
-          <section className="sectionBlock">
-            <div className="sectionTitle">LLM 配置</div>
-            <div className="helperCard">
-              <div className="helperText">
-                扩展端 LLM 配置会随上传传给后端，覆盖后端 .env 中的默认值。留空则使用后端默认配置。
-              </div>
-            </div>
-
-            <label className="fieldBlock fieldColumn">
-              <div className="fieldTextGroup fieldTextGroupColumn">
-                <span className="fieldTitle">API Base URL</span>
-              </div>
-              <input
-                className="textInput"
-                type="url"
-                value={form.llmBaseUrl || ""}
-                onChange={(e) => setForm((c) => ({ ...c, llmBaseUrl: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
-              />
-            </label>
-
-            <label className="fieldBlock fieldColumn">
-              <div className="fieldTextGroup fieldTextGroupColumn">
-                <span className="fieldTitle">Model ID</span>
-              </div>
-              <input
-                className="textInput"
-                type="text"
-                value={form.llmModel || ""}
-                onChange={(e) => setForm((c) => ({ ...c, llmModel: e.target.value }))}
-                placeholder="gpt-4o-mini"
-              />
-            </label>
-
-            <label className="fieldBlock fieldColumn">
-              <div className="fieldTextGroup fieldTextGroupColumn">
-                <span className="fieldTitle">API Key</span>
-              </div>
-              <input
-                className="textInput"
-                type="password"
-                value={form.llmApiKey || ""}
-                onChange={(e) => setForm((c) => ({ ...c, llmApiKey: e.target.value }))}
-                placeholder="sk-..."
-              />
-            </label>
-          </section>
         )}
 
         {/* 黑名单 */}
