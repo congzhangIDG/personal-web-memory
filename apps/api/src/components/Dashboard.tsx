@@ -244,24 +244,27 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
     activeNavRef.current = sectionIds[0];
     setActiveNav(sectionIds[0]);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (Date.now() - navClickTimeRef.current < 1000) return;
-        let best: IntersectionObserverEntry | null = null;
-        for (const e of entries) {
-          if (e.isIntersecting && (!best || e.boundingClientRect.top < best.boundingClientRect.top)) {
-            best = e;
-          }
+    const handleScroll = () => {
+      if (Date.now() - navClickTimeRef.current < 1000) return;
+      const headerOffset = 52; // sticky header height
+      let current: string | null = null;
+      for (const el of els) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= headerOffset + 8) {
+          current = el.id;
         }
-        if (best && best.target.id !== activeNavRef.current) {
-          activeNavRef.current = best.target.id;
-          setActiveNav(best.target.id);
-        }
-      },
-      { rootMargin: "-44px 0px -40% 0px", threshold: 0 },
-    );
-    els.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+      }
+      // 如果没有任何 section 到达顶部，取第一个
+      if (!current) current = els[0]?.id ?? null;
+      if (current && current !== activeNavRef.current) {
+        activeNavRef.current = current;
+        setActiveNav(current);
+      }
+    };
+    const scrollContainer = document.querySelector("[data-scroll-container]") || window;
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
   }, [sectionIds]);
 
   const toggleFavorite = async (id: number) => {
