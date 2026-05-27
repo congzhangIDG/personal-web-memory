@@ -1,5 +1,5 @@
 import type { DomainStat } from "@pwm/shared";
-import { getAppSetting, SETTING_KEYS } from "@/lib/settings";
+import { getAppSetting, getLlmConfig, SETTING_KEYS } from "@/lib/settings";
 
 type PageRef = {
   title: string;
@@ -49,9 +49,7 @@ async function summarizeChunk(
   totalChunks: number,
   pages: PageRef[],
 ): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const modelId = process.env.OPENAI_MODEL_ID;
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
   if (!apiKey || !apiBase || !modelId) return null;
 
   const pagesSection = pages
@@ -107,9 +105,7 @@ async function synthesizeFinalSummary(
   topDomains: string,
   chunkSummaries: string[],
 ): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const modelId = process.env.OPENAI_MODEL_ID;
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
   if (!apiKey || !apiBase || !modelId) return null;
 
   const chunksText = chunkSummaries
@@ -160,9 +156,7 @@ async function synthesizeFinalSummary(
 const CHUNK_SIZE = 30;
 
 async function generateAiSummary(input: DigestSummaryInput): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const modelId = process.env.OPENAI_MODEL_ID;
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
 
   if (!apiKey || !apiBase || !modelId) return null;
 
@@ -210,9 +204,7 @@ async function summarizeAllAtOnce(
   input: DigestSummaryInput,
   topDomainsText: string,
 ): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const modelId = process.env.OPENAI_MODEL_ID;
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
   if (!apiKey || !apiBase || !modelId) return null;
 
   const pages = input.pages ?? [];
@@ -274,9 +266,7 @@ async function generateAiPageSummary(
   title: string,
   content: string,
 ): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const apiBase = process.env.OPENAI_API_BASE;
-  const modelId = process.env.OPENAI_MODEL_ID;
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
 
   if (!apiKey || !apiBase || !modelId) return null;
 

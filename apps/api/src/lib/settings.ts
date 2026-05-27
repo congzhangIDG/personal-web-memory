@@ -10,6 +10,9 @@ export const SETTING_KEYS = {
   tagExtractionSystemPrompt: "tag_extraction_system_prompt",
   domainTagMap: "domain_tag_map",
   techKeywords: "tech_keywords",
+  llmApiKey: "llm_api_key",
+  llmApiBase: "llm_api_base",
+  llmModelId: "llm_model_id",
 } as const;
 
 const DEFAULT_SETTINGS: Record<string, string> = {
@@ -23,6 +26,9 @@ const DEFAULT_SETTINGS: Record<string, string> = {
     "你是一个网页内容理解助手。根据网页标题和域名，判断文章的核心主题要义，生成精准、具体的中文话题标签。避免宽泛标签，要体现文章的具体内容方向。",
   [SETTING_KEYS.domainTagMap]: "",
   [SETTING_KEYS.techKeywords]: "",
+  [SETTING_KEYS.llmApiKey]: "",
+  [SETTING_KEYS.llmApiBase]: "",
+  [SETTING_KEYS.llmModelId]: "",
 };
 
 /** 所有可配置的键列表（用于 UI 展示） */
@@ -56,6 +62,21 @@ export const SETTING_META: Array<{ key: string; label: string; description: stri
     key: SETTING_KEYS.techKeywords,
     label: "技术关键词列表（JSON 数组）",
     description: "规则匹配回退时，从标题中提取的关键词列表。格式：[\"React\",\"TypeScript\",...]。留空则使用代码内置列表。",
+  },
+  {
+    key: SETTING_KEYS.llmApiKey,
+    label: "LLM API Key",
+    description: "OpenAI 兼容接口的 API Key。留空则回退到环境变量 OPENAI_API_KEY。",
+  },
+  {
+    key: SETTING_KEYS.llmApiBase,
+    label: "LLM API Base URL",
+    description: "OpenAI 兼容接口的基地址（如 https://api.openai.com/v1）。留空则回退到环境变量 OPENAI_API_BASE。",
+  },
+  {
+    key: SETTING_KEYS.llmModelId,
+    label: "LLM Model ID",
+    description: "使用的模型标识（如 gpt-4o-mini）。留空则回退到环境变量 OPENAI_MODEL_ID。",
   },
 ];
 
@@ -98,4 +119,14 @@ export async function updateAppSettings(
     });
   }
   cache = null; // 失效缓存
+}
+
+/** 获取 LLM 连接配置（优先 DB 设置，回退环境变量） */
+export async function getLlmConfig(): Promise<{ apiKey: string; apiBase: string; modelId: string }> {
+  const all = await getAppSettings();
+  return {
+    apiKey: all[SETTING_KEYS.llmApiKey] || process.env.OPENAI_API_KEY || "",
+    apiBase: all[SETTING_KEYS.llmApiBase] || process.env.OPENAI_API_BASE || "",
+    modelId: all[SETTING_KEYS.llmModelId] || process.env.OPENAI_MODEL_ID || "",
+  };
 }

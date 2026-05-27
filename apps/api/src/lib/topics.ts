@@ -7,11 +7,7 @@
 //
 // 域名映射表和技术关键词列表支持从 DB 配置覆盖（见 /settings 页面）。
 
-import { getAppSetting, SETTING_KEYS } from "@/lib/settings";
-
-const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY;
-const OPENAI_API_BASE = () => process.env.OPENAI_API_BASE;
-const OPENAI_MODEL_ID = () => process.env.OPENAI_MODEL_ID;
+import { getAppSetting, getLlmConfig, SETTING_KEYS } from "@/lib/settings";
 
 export type PageInput = {
   url: string;
@@ -210,9 +206,7 @@ type LlmResult = Record<string, string[]>;
 async function llmBatchTopics(
   pages: PageInput[],
 ): Promise<LlmResult | null> {
-  const apiKey = OPENAI_API_KEY();
-  const apiBase = OPENAI_API_BASE();
-  const modelId = OPENAI_MODEL_ID();
+  const { apiKey, apiBase, modelId } = await getLlmConfig();
   if (!apiKey || !apiBase || !modelId) return null;
 
   const pageList = pages

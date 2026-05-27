@@ -121,6 +121,51 @@ function DigestDomainList({ domains, pages }: { domains: [string, number][]; pag
   );
 }
 
+function TopicTagCloud({ topics, pages }: { topics: [string, number][]; pages: PageItem[] }) {
+  const [hoveredTag, setHoveredTag] = useState<string | null>(null);
+  const max = topics[0]?.[1] || 1;
+  const cloudSize = (count: number) => {
+    const ratio = count / max;
+    if (ratio > 0.7) return "text-base font-semibold";
+    if (ratio > 0.4) return "text-sm font-medium";
+    return "text-xs";
+  };
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <h4 className="text-xs font-medium text-white/50 mb-2">主题标签云</h4>
+      <div className="flex flex-wrap gap-1.5">
+        {topics.slice(0, 40).map(([tag, count]) => (
+          <span
+            key={tag}
+            className={`relative rounded-full bg-blue-500/15 px-2.5 py-0.5 text-blue-300 cursor-default ${cloudSize(count)}`}
+            onMouseEnter={() => setHoveredTag(tag)}
+            onMouseLeave={() => setHoveredTag(null)}
+          >
+            {tag}
+            <span className="ml-1 text-blue-300/50">×{count}</span>
+            {hoveredTag === tag && (
+              <div className="absolute left-0 top-full mt-1 z-50 w-80 max-h-60 overflow-y-auto rounded-lg border border-white/15 bg-slate-900/95 p-3 shadow-xl backdrop-blur-md">
+                {pages.filter((p) => p.topics.includes(tag)).map((p) => (
+                  <a
+                    key={p.id}
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block py-1.5 border-b border-white/5 last:border-0 hover:bg-white/5 -mx-1 px-1 rounded"
+                  >
+                    <div className="text-xs text-white/80 truncate">{p.title || p.url}</div>
+                    <div className="text-[10px] text-white/30">{p.domain} · {new Date(p.visitedAt).toLocaleString("zh-CN")}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PageCard({ page, onToggleFavorite, onTopicClick, onDelete }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void; onDelete?: (id: number) => void }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
   const summary = page.summary || "";
@@ -513,13 +558,6 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                 p.topics.forEach((t) => { topicCounts[t] = (topicCounts[t] || 0) + 1; });
               });
               const sortedTopicCloud = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
-              const maxTopic = sortedTopicCloud[0]?.[1] || 1;
-              const cloudSize = (count: number, max: number) => {
-                const ratio = count / max;
-                if (ratio > 0.7) return "text-base font-semibold";
-                if (ratio > 0.4) return "text-sm font-medium";
-                return "text-xs";
-              };
               // 基于所有网页的 domain 统计（按页面数）
               const domainCounts: Record<string, number> = {};
               pageList.forEach((p) => { domainCounts[p.domain] = (domainCounts[p.domain] || 0) + 1; });
@@ -528,17 +566,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {sortedTopicCloud.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <h4 className="text-xs font-medium text-white/50 mb-2">主题标签云</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {sortedTopicCloud.slice(0, 40).map(([tag, count]) => (
-                          <span key={tag} className={`rounded-full bg-blue-500/15 px-2.5 py-0.5 text-blue-300 ${cloudSize(count, maxTopic)}`}>
-                            {tag}
-                            <span className="ml-1 text-blue-300/50">×{count}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <TopicTagCloud topics={sortedTopicCloud} pages={pageList} />
                   )}
                   {sortedDomains.length > 0 && (
                     <DigestDomainList domains={sortedDomains} pages={pageList} />
@@ -585,7 +613,11 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                     return (
                       <div className="flex flex-wrap gap-1.5">
                         {d.topics.map((tag) => (
-                          <span key={tag} className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-300">
+                          <span
+                            key={tag}
+                            className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-300 cursor-pointer hover:bg-blue-500/25 transition"
+                            onClick={() => handleTopicClick(tag)}
+                          >
                             {tag}{tagCounts[tag] ? ` (${tagCounts[tag]})` : ""}
                           </span>
                         ))}
