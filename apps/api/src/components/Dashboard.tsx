@@ -73,6 +73,32 @@ function renderMarkdownLinks(text: string) {
 
 const SUMMARY_TRUNCATE = 250;
 
+function DigestDomainList({ domains }: { domains: [string, number][] }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? domains : domains.slice(0, 10);
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+      <h4 className="text-xs font-medium text-white/50 mb-2">Domains TOP {showAll ? domains.length : Math.min(10, domains.length)}</h4>
+      <div className="space-y-1">
+        {visible.map(([domain, count]) => (
+          <div key={domain} className="flex items-center justify-between text-sm">
+            <span className="text-emerald-300 truncate">{domain}</span>
+            <span className="text-white/40 text-xs ml-2 shrink-0">{count}</span>
+          </div>
+        ))}
+      </div>
+      {domains.length > 10 && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className="mt-2 text-xs text-white/40 hover:text-white/70 transition"
+        >
+          {showAll ? "收起" : `更多 (共 ${domains.length} 个)`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PageCard({ page, onToggleFavorite, onTopicClick, onDelete }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void; onDelete?: (id: number) => void }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
   const summary = page.summary || "";
@@ -457,31 +483,33 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
         {/* 每日总结 Tab */}
         {tab === "digest" && (
           <div className="space-y-6">
-            {/* 标签云 */}
+            {/* 标签云 + Domains 统计 */}
             {digests.length > 0 && (() => {
+              // 基于所有网页的 topics 统计
               const topicCounts: Record<string, number> = {};
-              const domainCounts: Record<string, number> = {};
-              digests.forEach((d) => {
-                d.topics.forEach((t) => { topicCounts[t] = (topicCounts[t] || 0) + 1; });
-                d.topDomains.forEach((dom) => { domainCounts[dom.domain] = (domainCounts[dom.domain] || 0) + 1; });
+              pageList.forEach((p) => {
+                p.topics.forEach((t) => { topicCounts[t] = (topicCounts[t] || 0) + 1; });
               });
               const sortedTopicCloud = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
-              const sortedDomainCloud = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
               const maxTopic = sortedTopicCloud[0]?.[1] || 1;
-              const maxDomain = sortedDomainCloud[0]?.[1] || 1;
               const cloudSize = (count: number, max: number) => {
                 const ratio = count / max;
                 if (ratio > 0.7) return "text-base font-semibold";
                 if (ratio > 0.4) return "text-sm font-medium";
                 return "text-xs";
               };
+              // 基于所有网页的 domain 统计（按页面数）
+              const domainCounts: Record<string, number> = {};
+              pageList.forEach((p) => { domainCounts[p.domain] = (domainCounts[p.domain] || 0) + 1; });
+              const sortedDomains = Object.entries(domainCounts).sort((a, b) => b[1] - a[1]);
+
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {sortedTopicCloud.length > 0 && (
                     <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                       <h4 className="text-xs font-medium text-white/50 mb-2">主题标签云</h4>
                       <div className="flex flex-wrap gap-1.5">
-                        {sortedTopicCloud.slice(0, 30).map(([tag, count]) => (
+                        {sortedTopicCloud.slice(0, 40).map(([tag, count]) => (
                           <span key={tag} className={`rounded-full bg-blue-500/15 px-2.5 py-0.5 text-blue-300 ${cloudSize(count, maxTopic)}`}>
                             {tag}
                             <span className="ml-1 text-blue-300/50">×{count}</span>
@@ -490,18 +518,8 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                       </div>
                     </div>
                   )}
-                  {sortedDomainCloud.length > 0 && (
-                    <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                      <h4 className="text-xs font-medium text-white/50 mb-2">Domains 标签云</h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {sortedDomainCloud.slice(0, 30).map(([domain, count]) => (
-                          <span key={domain} className={`rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-emerald-300 ${cloudSize(count, maxDomain)}`}>
-                            {domain}
-                            <span className="ml-1 text-emerald-300/50">×{count}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                  {sortedDomains.length > 0 && (
+                    <DigestDomainList domains={sortedDomains} />
                   )}
                 </div>
               );
@@ -538,15 +556,20 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                       ))}
                     </div>
                   )}
-                  {d.topics.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {d.topics.map((tag) => (
-                        <span key={tag} className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-300">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  {d.topics.length > 0 && (() => {
+                    const dayPages = pageList.filter((p) => p.date === d.date);
+                    const tagCounts: Record<string, number> = {};
+                    dayPages.forEach((p) => p.topics.forEach((t) => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
+                    return (
+                      <div className="flex flex-wrap gap-1.5">
+                        {d.topics.map((tag) => (
+                          <span key={tag} className="rounded-full bg-blue-500/15 px-2.5 py-0.5 text-xs font-medium text-blue-300">
+                            {tag}{tagCounts[tag] ? ` (${tagCounts[tag]})` : ""}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* 该日页面列表 */}
                   {(() => {
                     const dayPages = pageList.filter((p) => p.date === d.date);
