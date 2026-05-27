@@ -315,7 +315,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                   ? id.replace("date-", "")
                   : id.replace("topic-", "");
                 const count = tab === "timeline"
-                  ? (paginatedGrouped[id.replace("date-", "")]?.length ?? 0)
+                  ? (groupedByDate[id.replace("date-", "")]?.length ?? 0)
                   : (topicMap[id.replace("topic-", "")]?.length ?? 0);
                 const isActive = activeNav === id;
                 return (

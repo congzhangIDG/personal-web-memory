@@ -258,9 +258,9 @@ async function summarizeAllAtOnce(
 }
 
 /**
- * 抓取网页内容并生成事实摘要（≤500 字）
+ * 由大模型生成网页事实摘要（≤1000 字）
  *
- * 策略：1) LLM 摘要（优先）；2) 直接截取前 500 字（回退）
+ * 策略：1) LLM 摘要（优先）；2) 直接截取前 1000 字（回退）
  * 不会编造内容——摘要内容完全来自页面原始文本。
  */
 async function generateAiPageSummary(
@@ -281,7 +281,7 @@ async function generateAiPageSummary(
     "  3. 写成一个完整的段落，不要用列表或分点",
     "  4. 保证语义完整，涵盖原文**主要内容**和**关键论点**，不要遗漏重要信息",
     "  5. 用平实的叙述性语言，不要用'本文介绍了'、'该页面讨论了'等套话",
-    "  6. 篇幅控制在 800~1000 字，保证内容充实但不冗余",
+    "  6. 篇幅控制在 1000 字以内，覆盖原文核心内容即可",
     "",
     `标题：${title}`,
     "",
@@ -298,7 +298,7 @@ async function generateAiPageSummary(
       body: JSON.stringify({
         model: modelId,
         temperature: 0.3,
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [
           {
             role: "system",
@@ -324,8 +324,8 @@ async function generateAiPageSummary(
 
 /**
  * 为单个页面生成事实摘要。
- * 1) 尝试抓取页面 HTML、提取正文、调用 LLM 摘要
- * 2) LLM 不可用时直接截取前 500 字
+ * 1) 尝试抓取页面 HTML、提取正文、调用 LLM 摘要（≤1000字）
+ * 2) LLM 不可用时直接截取前 1000 字
  * 3) 完全无法获取内容时返回 null
  */
 export async function generatePageSummary(
