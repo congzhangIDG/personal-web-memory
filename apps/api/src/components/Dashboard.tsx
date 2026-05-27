@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { DomainStat } from "@pwm/shared";
 
 type DigestItem = {
@@ -67,7 +67,7 @@ function renderMarkdownLinks(text: string) {
 
 const SUMMARY_TRUNCATE = 100;
 
-function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite: (id: number) => void }) {
+function PageCard({ page, onToggleFavorite, onTopicClick }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
   const summary = page.summary || "";
   const needsTruncation = summary.length > SUMMARY_TRUNCATE;
@@ -107,9 +107,13 @@ function PageCard({ page, onToggleFavorite }: { page: PageItem; onToggleFavorite
           {page.topics.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {page.topics.slice(0, 5).map((tag) => (
-                <span key={tag} className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700">
+                <button
+                  key={tag}
+                  onClick={() => onTopicClick?.(tag)}
+                  className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition-colors cursor-pointer"
+                >
                   {tag}
-                </span>
+                </button>
               ))}
             </div>
           )}
@@ -135,7 +139,21 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
   const [pageList, setPageList] = useState(pages);
   const [favList, setFavList] = useState(favorites);
   const [timelinePage, setTimelinePage] = useState(1);
+  const [activeTopic, setActiveTopic] = useState<string | null>(null);
+  const topicRefs = useRef<Record<string, HTMLElement | null>>({});
   const PAGE_SIZE = 20;
+  const topicsContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleTopicClick = (topic: string) => {
+    setActiveTopic(topic);
+    setTab("topics");
+  };
+
+  useEffect(() => {
+    if (tab === "topics" && activeTopic && topicRefs.current[activeTopic]) {
+      topicRefs.current[activeTopic]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [tab, activeTopic]);
 
   const toggleFavorite = async (id: number) => {
     const res = await fetch(`/api/pages/${id}/favorite`, { method: "PATCH" });
@@ -222,9 +240,9 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                   <span className="text-xs text-slate-400">{datePages.length} 条记录</span>
                 </div>
                 <div className="ml-1.5 border-l-2 border-white/10 pl-6 space-y-3">
-                  {datePages.map((page) => (
-                    <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
-                  ))}
+                    {datePages.map((page) => (
+                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
+                    ))}
                 </div>
               </section>
             ))}
@@ -248,19 +266,27 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
         {/* 主题 Tab */}
         {tab === "topics" && (
-          <div className="space-y-8">
+          <div ref={topicsContainerRef} className="space-y-8">
             {sortedTopics.length > 0 ? (
               sortedTopics.map(([topic, topicPages]) => (
-                <section key={topic}>
+                <section
+                  key={topic}
+                  id={`topic-${topic}`}
+                  ref={(el) => { topicRefs.current[topic] = el; }}
+                >
                   <div className="mb-4 flex items-center gap-3">
-                    <span className="rounded-full bg-blue-500/20 px-3 py-1 text-sm font-medium text-blue-300">
+                    <span className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                      activeTopic === topic
+                        ? "bg-blue-500/40 text-blue-200 ring-1 ring-blue-400/50"
+                        : "bg-blue-500/20 text-blue-300"
+                    }`}>
                       {topic}
                     </span>
                     <span className="text-xs text-slate-400">{topicPages.length} 条记录</span>
                   </div>
                   <div className="ml-1.5 border-l-2 border-blue-500/20 pl-6 space-y-3">
                     {topicPages.slice(0, 10).map((page) => (
-                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
+                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
                     ))}
                     {topicPages.length > 10 && (
                       <p className="text-xs text-slate-400 pl-2">还有 {topicPages.length - 10} 条记录…</p>
@@ -326,7 +352,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
           <div className="space-y-3">
             {favList.length > 0 ? (
               favList.map((page) => (
-                <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} />
+                <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
               ))
             ) : (
               <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
