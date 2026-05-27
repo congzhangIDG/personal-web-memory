@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { DomainStat } from "@pwm/shared";
 
 type DigestItem = {
@@ -158,6 +158,52 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     setTab("topics");
   };
 
+  // ─── 数据计算（hooks 顺序：state → ref → useMemo → useEffect）───
+
+  const groupedByDate = useMemo(() => {
+    const map: Record<string, PageItem[]> = {};
+    pageList.forEach((p) => {
+      if (!map[p.date]) map[p.date] = [];
+      map[p.date].push(p);
+    });
+    return map;
+  }, [pageList]);
+
+  const topicMap = useMemo(() => {
+    const map: Record<string, PageItem[]> = {};
+    pageList.forEach((p) => {
+      p.topics.forEach((t) => {
+        if (!map[t]) map[t] = [];
+        map[t].push(p);
+      });
+    });
+    return map;
+  }, [pageList]);
+
+  const sortedTopics = useMemo(() => {
+    return Object.entries(topicMap).sort((a, b) => b[1].length - a[1].length);
+  }, [topicMap]);
+
+  const timelinePageSize = PAGE_SIZE;
+  const totalTimelinePages = Math.ceil(pageList.length / timelinePageSize);
+  const paginatedPages = pageList.slice(0, timelinePage * timelinePageSize);
+  const paginatedGrouped = useMemo(() => {
+    const map: Record<string, PageItem[]> = {};
+    paginatedPages.forEach((p) => {
+      if (!map[p.date]) map[p.date] = [];
+      map[p.date].push(p);
+    });
+    return map;
+  }, [paginatedPages]);
+
+  const sectionIds = useMemo(() => {
+    if (tab === "timeline") return Object.keys(paginatedGrouped).map((d) => `date-${d}`);
+    if (tab === "topics") return sortedTopics.map(([t]) => `topic-${t}`);
+    return [];
+  }, [tab, paginatedGrouped, sortedTopics]);
+
+  // ─── Effects ───
+
   useEffect(() => {
     if (tab === "topics" && activeTopic && topicRefs.current[activeTopic]) {
       topicRefs.current[activeTopic]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -170,6 +216,31 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // 侧边栏导航 - 当前激活的 section
+  const [activeNav, setActiveNav] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (sectionIds.length === 0) return;
+    const els = sectionIds.map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    if (els.length === 0) return;
+
+    setActiveNav(sectionIds[0]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let best: IntersectionObserverEntry | null = null;
+        for (const e of entries) {
+          if (e.isIntersecting && (!best || e.boundingClientRect.top > best.boundingClientRect.top)) {
+            best = e;
+          }
+        }
+        if (best) setActiveNav(best.target.id);
+      },
+      { rootMargin: "-90px 0px -65% 0px" },
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [sectionIds]);
 
   const toggleFavorite = async (id: number) => {
     const res = await fetch(`/api/pages/${id}/favorite`, { method: "PATCH" });
@@ -185,33 +256,6 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
     }
   };
 
-  // 按日期分组
-  const groupedByDate: Record<string, PageItem[]> = {};
-  pageList.forEach((p) => {
-    if (!groupedByDate[p.date]) groupedByDate[p.date] = [];
-    groupedByDate[p.date].push(p);
-  });
-
-  // 按主题分组（每个主题下按日期再分组）
-  const topicMap: Record<string, PageItem[]> = {};
-  pageList.forEach((p) => {
-    p.topics.forEach((t) => {
-      if (!topicMap[t]) topicMap[t] = [];
-      topicMap[t].push(p);
-    });
-  });
-  const sortedTopics = Object.entries(topicMap).sort((a, b) => b[1].length - a[1].length);
-
-  // 时间线分页
-  const allDates = Object.keys(groupedByDate);
-  const totalTimelinePages = Math.ceil(pageList.length / PAGE_SIZE);
-  const paginatedPages = pageList.slice(0, timelinePage * PAGE_SIZE);
-  const paginatedGrouped: Record<string, PageItem[]> = {};
-  paginatedPages.forEach((p) => {
-    if (!paginatedGrouped[p.date]) paginatedGrouped[p.date] = [];
-    paginatedGrouped[p.date].push(p);
-  });
-
   const tabs = [
     { key: "timeline" as const, label: "时间线" },
     { key: "topics" as const, label: "主题" },
@@ -221,7 +265,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(106,125,255,0.22),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(86,211,154,0.12),_transparent_22%),linear-gradient(180deg,_#08101d_0%,_#0b1220_42%,_#111827_100%)] text-white">
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-6 py-10 lg:px-10">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-row gap-8 px-6 py-10 lg:px-10">
         {/* Header */}
         <section className="space-y-4">
           <div className="inline-flex items-center rounded-full border border-white/12 bg-white/6 px-4 py-1 text-sm text-white/72 backdrop-blur-md">
@@ -245,11 +289,43 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
           ))}
         </div>
 
+        {/* 侧边栏导航 */}
+        {(tab === "timeline" || tab === "topics") && sectionIds.length > 0 && (
+          <nav className="sticky top-24 hidden h-fit w-40 shrink-0 lg:block">
+            <div className="space-y-0.5 border-l-2 border-white/10 pl-3">
+              {sectionIds.map((id) => {
+                const label = tab === "timeline"
+                  ? id.replace("date-", "")
+                  : id.replace("topic-", "");
+                const isActive = activeNav === id;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setActiveNav(id);
+                      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className={`block w-full truncate text-left text-sm leading-8 transition-colors ${
+                      isActive
+                        ? "border-l-2 border-blue-400 -ml-[14px] pl-[12px] text-blue-400 font-medium"
+                        : "text-white/50 hover:text-white/70 hover:border-l-2 hover:border-white/30 hover:-ml-[14px] hover:pl-[12px]"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+
+        {/* 内容区 */}
+        <div className="min-w-0 flex-1">
         {/* 时间线 Tab */}
         {tab === "timeline" && (
           <div className="space-y-8">
             {Object.entries(paginatedGrouped).map(([date, datePages]) => (
-              <section key={date}>
+              <section key={date} id={`date-${date}`}>
                 <div className="mb-4 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-blue-500" />
                   <h3 className="text-lg font-semibold text-white">{date} · {formatDate(date)}</h3>
@@ -377,6 +453,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
             )}
           </div>
         )}
+        </div>{/* /内容区 */}
       </main>
 
       {/* 回到顶部 */}
