@@ -70,6 +70,7 @@ function App() {
         minDurationSec: form.minDurationSec,
         recordIncognito: form.recordIncognito,
       });
+      await browser.runtime.sendMessage({ type: "pwm:settings-updated" });
       setStatus("配置已保存");
     } catch (error) {
       console.error("[PWM] Save settings failed", error);

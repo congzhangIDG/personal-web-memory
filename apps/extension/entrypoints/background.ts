@@ -6,9 +6,11 @@ import {
   flushAll,
   isTracked,
   updateTitle,
+  getActiveRecordIds,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
 import { uploadDigest } from "@/src/lib/uploader";
+import { db } from "@/src/lib/db";
 
 function getTodayDateStr(): string {
   const d = new Date();
@@ -33,7 +35,8 @@ async function syncCurrentActiveTab() {
 
 async function generateAndUploadDigest(dateStr: string) {
   await flushAll();
-  const digest = await buildDailyDigest(dateStr);
+  const excludeIds = getActiveRecordIds();
+  const digest = await buildDailyDigest(dateStr, excludeIds);
   if (!digest) {
     return {
       ok: false,
@@ -120,30 +123,59 @@ export default defineBackground(() => {
 
   void syncCurrentActiveTab();
 
-  // --- 每日聚合（alarms API）---
-  const ALARM_NAME = "pwm-daily-aggregate";
+  // --- 定时上传（alarms API，按用户配置间隔）---
+  const ALARM_NAME = "pwm-periodic-upload";
+  const DEFAULT_INTERVAL_MIN = 5;
 
-  browser.alarms.create(ALARM_NAME, {
-    // 每 24 小时触发一次；首次延迟 1 分钟
-    delayInMinutes: 1,
-    periodInMinutes: 1440,
-  });
+  async function setupAlarm() {
+    const settings = await db.settings.get("singleton");
+    const intervalMin = settings?.uploadIntervalMin ?? DEFAULT_INTERVAL_MIN;
+    // 先清除旧 alarm，再按最新配置重建
+    await browser.alarms.clear(ALARM_NAME);
+    browser.alarms.create(ALARM_NAME, {
+      delayInMinutes: intervalMin,
+      periodInMinutes: intervalMin,
+    });
+    console.log(`[PWM] Alarm set: every ${intervalMin} min`);
+  }
+
+  void setupAlarm();
 
   browser.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name !== ALARM_NAME) return;
-    const dateStr = getYesterdayDateStr();
+
+    // 检查是否启用自动上传
+    const settings = await db.settings.get("singleton");
+    if (settings?.enabled === false) {
+      console.log("[PWM] Auto upload skipped (disabled)");
+      return;
+    }
+
+    // 上传今天的数据
+    const dateStr = getTodayDateStr();
     const result = await generateAndUploadDigest(dateStr);
-    console.log("[PWM] Daily aggregation result", dateStr, result);
+    console.log("[PWM] Periodic upload result", dateStr, result);
   });
 
   browser.runtime.onMessage.addListener((message) => {
-    if (message?.type !== "pwm:generate-today-digest") {
-      return undefined;
+    if (message?.type === "pwm:generate-today-digest") {
+      return (async () => {
+        try {
+          await syncCurrentActiveTab();
+          const result = await generateAndUploadDigest(getTodayDateStr());
+          return { ok: true, result };
+        } catch (e) {
+          console.error("[PWM] Generate today digest failed", e);
+          return { ok: false, error: String(e) };
+        }
+      })();
     }
 
-    return (async () => {
-      await syncCurrentActiveTab();
-      return generateAndUploadDigest(getTodayDateStr());
-    })();
+    if (message?.type === "pwm:settings-updated") {
+      void setupAlarm();
+      return Promise.resolve({ ok: true });
+    }
+
+    return undefined;
   });
 });

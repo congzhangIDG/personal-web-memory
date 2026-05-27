@@ -142,6 +142,11 @@ export function isTracked(tabId: number): boolean {
   return tracked.has(tabId);
 }
 
+/** 返回当前所有活跃追踪中的 Dexie recordId 列表 */
+export function getActiveRecordIds(): number[] {
+  return Array.from(tracked.values()).map((s) => s.recordId);
+}
+
 /**
  * 更新当前追踪 tab 的页面标题（页面完全加载后标题可能变化）
  */

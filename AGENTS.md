@@ -60,6 +60,27 @@
 - 语义化前缀 + 简体中文：`feat(api): ...`、`feat(extension): ...`
 - 每个 step 完成后单独提交代码。
 
+## 扩展端 durationMs 计时机制
+
+### 内存模型（tracker.ts）
+```
+TrackedTab { recordId: number, activeStart: number|null, accumulatedMs: number }
+```
+- `startTracking()`：创建 Dexie PageRecord（durationMs=undefined），在内存 Map 注册 TrackedTab
+- `resumeTimer()`：`activeStart = Date.now()`（tab 获得焦点）
+- `pauseTimer()`：`accumulatedMs += now - activeStart; activeStart = null`（tab 失焦）
+- `stopTracking()`：最终结算 `totalMs = accumulatedMs + (activeStart ? now - activeStart : 0)`，写入 Dexie，从 Map 删除
+- `flushAll()`：对所有正在追踪的 tab 快照当前累计值写入 Dexie，**不终止追踪**（重置 activeStart 为 now）
+
+### 聚合上传流程（background.ts → aggregator.ts）
+1. `flushAll()` — 确保活跃 tab 的 durationMs 已写入 Dexie
+2. `buildDailyDigest(dateStr)` — 从 Dexie 查询当天所有 PageRecord
+3. **按 URL 去重**：同一 URL 多条记录 → 累加各条的 durationMs → 得到该 URL 当天**总停留时长快照**
+4. 组装 `DailyDigest`（含 pages 数组）上传后端
+
+### 后端写入语义（route.ts）
+扩展每次上传的 `durationMs` 是 **当天该 URL 的累计总时长快照**（非增量），因此后端 upsert 时必须用 **覆盖赋值**（`durationMs: p.durationMs`），而**不能**用 `{ increment: p.durationMs }`，否则多次上传会导致时长翻倍。
+
 ## 搜索与噪音源
 - 搜索时主动排除 `node_modules`、`.git`、`.omo`
 - `.omo/*` 是本地会话状态文件，不要混入功能提交。

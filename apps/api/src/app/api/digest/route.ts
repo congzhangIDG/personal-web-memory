@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       update: {
         title: p.title,
         visitedAt: p.visitedAt,
-        durationMs: { increment: p.durationMs },
+        durationMs: p.durationMs,
         topics: JSON.stringify(finalTopics),
       },
     });

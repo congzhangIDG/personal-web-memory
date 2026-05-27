@@ -23,13 +23,19 @@ function dateRange(dateStr: string): { start: number; end: number } {
  */
 export async function buildDailyDigest(
   dateStr: string,
+  excludeIds?: number[],
 ): Promise<DailyDigest | null> {
   const { start, end } = dateRange(dateStr);
 
-  const pages = await db.pages
+  let pages = await db.pages
     .where("visitedAt")
     .between(start, end, true, false)
     .toArray();
+
+  if (excludeIds && excludeIds.length > 0) {
+    const idSet = new Set(excludeIds);
+    pages = pages.filter((p) => !idSet.has(p.id!));
+  }
 
   if (pages.length === 0) return null;
 
