@@ -13,6 +13,7 @@ export const SETTING_KEYS = {
   llmApiKey: "llm_api_key",
   llmApiBase: "llm_api_base",
   llmModelId: "llm_model_id",
+  maxTopicsCount: "max_topics_count",
 } as const;
 
 const DEFAULT_SETTINGS: Record<string, string> = {
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   [SETTING_KEYS.llmApiKey]: "",
   [SETTING_KEYS.llmApiBase]: "",
   [SETTING_KEYS.llmModelId]: "",
+  [SETTING_KEYS.maxTopicsCount]: "5",
 };
 
 /** 所有可配置的键列表（用于 UI 展示） */
@@ -77,6 +79,11 @@ export const SETTING_META: Array<{ key: string; label: string; description: stri
     key: SETTING_KEYS.llmModelId,
     label: "LLM Model ID",
     description: "使用的模型标识（如 gpt-4o-mini）。留空则回退到环境变量 OPENAI_MODEL_ID。",
+  },
+  {
+    key: SETTING_KEYS.maxTopicsCount,
+    label: "每页可打主题标签数量",
+    description: "每个网页最多可分配的话题标签数。默认 5，取值范围 1-20。修改后下次标签生成时生效。",
   },
 ];
 

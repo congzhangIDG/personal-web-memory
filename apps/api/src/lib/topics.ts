@@ -169,8 +169,9 @@ function extractTitleTags(title: string, keywordsOverride?: string[]): string[] 
   return found;
 }
 
-function ruleBasedTopics(page: PageInput, options?: { domainOverrides?: Record<string, string[]>; keywordOverrides?: string[] }): string[] {
+function ruleBasedTopics(page: PageInput, options?: { domainOverrides?: Record<string, string[]>; keywordOverrides?: string[]; maxCount?: number }): string[] {
   const tags = new Set<string>();
+  const maxCount = options?.maxCount ?? 5;
 
   // 域名匹配
   getDomainTags(page.domain, options?.domainOverrides).forEach((t) => tags.add(t));
@@ -195,8 +196,7 @@ function ruleBasedTopics(page: PageInput, options?: { domainOverrides?: Record<s
     // ignore invalid URL
   }
 
-  // 限制 5 个
-  return [...tags].slice(0, 5);
+  return [...tags].slice(0, maxCount);
 }
 
 // ───────────────────────── LLM 批量生成 ─────────────────────────
@@ -205,6 +205,7 @@ type LlmResult = Record<string, string[]>;
 
 async function llmBatchTopics(
   pages: PageInput[],
+  maxCount: number = 5,
 ): Promise<LlmResult | null> {
   const { apiKey, apiBase, modelId } = await getLlmConfig();
   if (!apiKey || !apiBase || !modelId) return null;
@@ -218,7 +219,7 @@ async function llmBatchTopics(
     "以下是用户今天浏览的网页列表。请根据每个网页的标题和域名，判断其核心主题，生成精准的话题标签。",
     "要求：",
     "1. 标签必须抓住文章的核心主题要义，不能只写宽泛的域名级标签（如仅写'新闻'、'博客'），要具体到领域和内容方向",
-    "2. 每个网页 1-5 个标签，从核心到细分层次排列",
+    `2. 每个网页 1-${maxCount} 个标签，从核心到细分层次排列`,
     "3. 标签风格一致：名词性短语，中文为主，技术名词可用英文（如 React、RAG、Next.js）",
     "4. 如果是同一主题的多个页面（如同一个 GitHub 仓库的不同文件），使用相同标签",
     "5. 好的标签示例：'前端性能优化'、'LLM 推理部署'、'React Server Components'、'Kubernetes 监控'、'RAG 检索增强'。差的标签示例：'技术'、'博客'、'文章'、'网页'",
@@ -270,11 +271,11 @@ async function llmBatchTopics(
 
     if (!parsed.topics || typeof parsed.topics !== "object") return null;
 
-    // 过滤：每个 url 最多 5 个标签
+    // 过滤：每个 url 最多 maxCount 个标签
     const result: LlmResult = {};
     for (const [url, tags] of Object.entries(parsed.topics)) {
       if (Array.isArray(tags)) {
-        result[url] = tags.slice(0, 5);
+        result[url] = tags.slice(0, maxCount);
       }
     }
 
@@ -300,22 +301,26 @@ export async function generateTopicsForPages(
 ): Promise<Map<string, string[]>> {
   if (pages.length === 0) return new Map();
 
+  // 读取用户配置的主题标签数量上限
+  const maxCountRaw = await getAppSetting(SETTING_KEYS.maxTopicsCount);
+  const maxCount = Math.max(1, Math.min(20, parseInt(maxCountRaw, 10) || 5));
+
   // 加载外部覆盖配置
   const domainOverrides = await loadDomainTagOverrides();
   const keywordOverrides = await loadTechKeywordOverrides();
   const ruleOptions = (domainOverrides || keywordOverrides)
-    ? { domainOverrides: domainOverrides ?? undefined, keywordOverrides: keywordOverrides ?? undefined }
-    : undefined;
+    ? { domainOverrides: domainOverrides ?? undefined, keywordOverrides: keywordOverrides ?? undefined, maxCount }
+    : { maxCount };
 
   const result = new Map<string, string[]>();
 
   // 1) 优先 LLM 批量生成
   if (useLlm) {
-    const llmResult = await llmBatchTopics(pages);
+    const llmResult = await llmBatchTopics(pages, maxCount);
     if (llmResult) {
       for (const p of pages) {
         const topics = llmResult[p.url];
-        result.set(p.url, topics?.slice(0, 5) ?? ruleBasedTopics(p, ruleOptions));
+        result.set(p.url, topics?.slice(0, maxCount) ?? ruleBasedTopics(p, ruleOptions));
       }
       return result;
     }
