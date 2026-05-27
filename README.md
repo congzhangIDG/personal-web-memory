@@ -62,8 +62,16 @@ pnpm dev:ext
 - **学习记录**：追踪一天内阅读了哪些技术文档、在哪些域名停留最久
 - **研发复盘**：把 OAuth、RAG、Next.js 等分散浏览轨迹汇总成每日工作摘要
 - **个人知识归档**：用 Dashboard 回看最近 30 天的关注主题变化
+<img width="1441" height="885" alt="image" src="https://github.com/user-attachments/assets/46fc185e-70fd-4cd2-a6a8-7e70d54f24b1" />
+<img width="1636" height="893" alt="image" src="https://github.com/user-attachments/assets/fa78fd7d-0c23-4aec-afea-e905ac8dbf6c" />
+<img width="1283" height="763" alt="image" src="https://github.com/user-attachments/assets/9378005d-1265-4c14-857b-2d9945c47dd2" />
+<img width="1434" height="711" alt="image" src="https://github.com/user-attachments/assets/597ef27d-36cd-46e0-b735-e74cd780e0d0" />
 
-## Contributing（开源必备）
+<img width="387" height="602" alt="image" src="https://github.com/user-attachments/assets/18616572-ca2d-406e-a2ae-f2713b90c596" />
+<img width="370" height="590" alt="image" src="https://github.com/user-attachments/assets/95c147cd-54d8-4d89-876f-dcb30fa9c171" />
+
+
+## Contributing
 
 欢迎提交 Issue 和 PR。
 
