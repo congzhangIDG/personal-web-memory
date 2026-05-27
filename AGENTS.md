@@ -1,61 +1,65 @@
 # AGENTS.md
 
 ## 仓库定位（已核实）
-- 这是一个 `pnpm` monorepo：
+- pnpm monorepo：
   - `apps/api`：Next.js 16 API + Dashboard
   - `apps/extension`：WXT + React 浏览器扩展
   - `packages/shared`：前后端共享的 Zod schema / TypeScript 类型
 - 根脚本只提供最小入口：`dev:api`、`dev:ext`、`build:api`、`build:ext`。
+- 无根级 `test` / `lint` / `typecheck` 聚合脚本，无 CI 工作流。
 
-## 先读哪些文件
-- 根：`package.json`、`pnpm-workspace.yaml`、`.gitignore`
-- API：`apps/api/package.json`、`apps/api/prisma.config.ts`、`apps/api/src/app/api/digest/route.ts`、`apps/api/src/app/page.tsx`
-- 扩展：`apps/extension/package.json`、`apps/extension/wxt.config.ts`、`apps/extension/entrypoints/background.ts`、`apps/extension/entrypoints/popup/App.tsx`
-- 共享契约：`packages/shared/src/index.ts`
-
-## 精确命令（不要猜）
+## 精确命令
 - 安装依赖：`pnpm install`
-- 启动 API：`pnpm dev:api`
-- 启动扩展开发：`pnpm dev:ext`
+- 启动 API：`pnpm dev:api`（默认 `localhost:3000`）
+- 启动扩展开发：`pnpm dev:ext`（浏览器手动加载 WXT 输出）
 - 构建 API：`pnpm build:api`
 - 构建扩展：`pnpm build:ext`
 - 扩展额外类型检查：`pnpm -F @pwm/extension compile`
-- API lint：`pnpm -F @pwm/api lint`
 
 ## 验证顺序
-- 改 `apps/api`：至少跑 `pnpm build:api`
-- 改 `apps/extension`：至少跑 `pnpm build:ext`
-- 改 `packages/shared` 的 schema / type：必须同时跑 `pnpm build:api` 和 `pnpm build:ext`
+- 改 `apps/api` → 至少跑 `pnpm build:api`
+- 改 `apps/extension` → 至少跑 `pnpm build:ext`
+- 改 `packages/shared` → 同时跑 `pnpm build:api` + `pnpm build:ext`
+
+## API 路由总览
+| 路径 | 方法 | 用途 |
+|------|------|------|
+| `/api/digest` | POST | 扩展上传 DailyDigest（upsert + AI 摘要补全） |
+| `/api/digest` | GET | 返回所有摘要列表 |
+| `/api/digest/regenerate` | POST | 重新生成指定日期的 AI 摘要（body: `{date}`） |
+| `/api/pages/[id]` | DELETE | 删除单条页面记录 |
+| `/api/pages/[id]` | PATCH | 更新收藏/主题（body: `{favorited?, topics?}`） |
+| `/api/pages/[id]/favorite` | PATCH | 切换收藏状态（基于当前状态取反） |
+| `/api/pages/backfill-summary` | POST | 批量回填空摘要的页面 + 重新生成所有日总结 |
+| `/api/settings` | GET | 返回所有可配置项（含 value + defaultValue） |
+| `/api/settings` | PUT | 批量保存设置（body: `{items: [{key, value}]}`） |
 
 ## 架构要点（高频误判点）
-- 扩展不会把原始 page 数据发给后端；原始浏览记录只存在扩展端 Dexie。
-- 上传给后端的是 `DailyDigest`，契约定义在 `packages/shared/src/index.ts`。
-- 扩展定时上传入口在 `apps/extension/entrypoints/background.ts`：alarm -> `buildDailyDigest()` -> `uploadDigest()`。
-- 后端接收入口在 `apps/api/src/app/api/digest/route.ts`：`POST /api/digest` upsert SQLite，`GET /api/digest` 返回摘要列表。
-- Dashboard 首页 `apps/api/src/app/page.tsx` 直接读 Prisma，不绕内部 HTTP 请求。
-- `summary` 可由后端在 `POST /api/digest` 中自动补全；实现位于 `apps/api/src/lib/summary.ts`。
+- 扩展端用 **Dexie** 本地存储原始浏览记录，**不**把原始页面数据直接发给后端。
+- 上传给后端的是 `DailyDigest`（聚合摘要），契约定义在 `packages/shared/src/index.ts`。
+- 扩展定时上传入口：`background.ts` → `buildDailyDigest()` → `uploadDigest()`。
+- Dashboard 首页 `page.tsx` 直接读 Prisma，不绕内部 HTTP 请求。
+- `lib/topics.ts` 的标签生成策略：**LLM 批量优先**（有 OPENAI_API_KEY 时）→ **规则回退**（域名映射 + 标题关键词匹配）。
+- `lib/summary.ts` 的摘要生成策略：**OpenAI 兼容接口** → **规则兜底摘要**。
+- 域名映射表（`DEFAULT_DOMAIN_TAG_MAP`）和技术关键词列表（`DEFAULT_TECH_KEYWORDS`）是内置缺省值，可在 `/settings` 页面用 DB 配置覆盖。代码运行时读取 DB 值（`getAppSetting`）合并/替代默认列表。
+- 设置项的系统提示词在 AI 调用时作为 `system` 参数传入，修改后**下次生成时生效**，无需重启服务。
+- DB 设置项有 1 分钟内存缓存（`settings.ts`），`updateAppSettings()` 写入后自动清缓存。
 
-## 环境与数据源
-- API 的 SQLite 路径由 `apps/api/prisma.config.ts` 固定为 `file:./prisma/dev.db`。
-- API 运行时需要 `apps/api/.env`；可参考 `apps/api/.env.example`。
-- AI 摘要使用 OpenAI 兼容接口，读取：
-  - `OPENAI_API_KEY`
-  - `OPENAI_API_BASE`
-  - `OPENAI_MODEL_ID`
+## DB / Prisma 约束
+- **Prisma 7** + `@prisma/adapter-better-sqlite3`，不要退回旧的 `datasourceUrl` 构造方式。
+- Prisma client 初始化在 `apps/api/src/lib/prisma.ts`。
+- SQLite 路径固定为 `file:./prisma/dev.db`（`prisma.config.ts`）。
+- 三个模型：`DailyDigest`（每日聚合）、`PageVisit`（单页面记录）、`AppSetting`（键值设置）。
+- 运行前确保有 `.env`（参考 `.env.example`）。
 
-## Prisma 相关约束
-- 当前仓库使用 Prisma 7 + `@prisma/adapter-better-sqlite3`，不要退回旧的 `datasourceUrl` 构造方式。
-- Prisma client 初始化在 `apps/api/src/lib/prisma.ts`，改数据库接入方式时先读这里。
+## 环境变量（AI 摘要用）
+- `OPENAI_API_KEY`、`OPENAI_API_BASE`、`OPENAI_MODEL_ID`
+- 无这些变量时，摘要/标签降级为规则生成，不报错。
 
-## 搜索与编辑时的噪音源
-- `packages/shared/node_modules` 已进入工作区；搜索时应主动排除 `node_modules`、`.git`、`.omo`，避免误读。
-- `.omo/*` 是本地会话/续跑状态文件，不属于产品功能代码；不要把它们混进功能提交。
+## 提交习惯
+- 语义化前缀 + 简体中文：`feat(api): ...`、`feat(extension): ...`
+- 每个 step 完成后单独提交代码。
 
-## 当前没有的东西
-- 根目录没有统一的 `test`、`lint`、`typecheck` 聚合脚本。
-- 没有 CI 工作流可作为事实来源。
-- 没有额外的 `CLAUDE.md`、`.cursorrules`、`opencode.json` 仓库级指令文件。
-
-## 提交习惯（基于当前历史）
-- 现有提交风格是语义化前缀 + 简体中文说明，例如：`feat(api): ...`、`feat(extension): ...`。
-- 用户已明确要求：**每个 step 完成后单独提交代码**。
+## 搜索与噪音源
+- 搜索时主动排除 `node_modules`、`.git`、`.omo`
+- `.omo/*` 是本地会话状态文件，不要混入功能提交。

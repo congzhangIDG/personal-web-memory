@@ -13,7 +13,12 @@
 - 按日聚合为 `DailyDigest`，包含页面数、总时长、Top Domains
 - 扩展端本地存储原始数据，后端只接收摘要
 - Dashboard 展示最近 30 天的 Digest、摘要与统计
-- 支持 OpenAI 兼容接口生成每日 AI 总结
+- 时间线 + 主题 + 收藏 三页签切换，左侧导航快速跳转
+- 支持 OpenAI 兼容接口生成每日 AI 总结，降级为规则生成不报错
+- 内建域名标签映射和技术关键词列表，AI 不可用时按规则自动打标签
+- **系统设置页面**（`/settings`）可自定义 AI 系统提示词、域名标签映射表、技术关键词列表
+- 支持手动重新生成单日摘要、批量回填所有日总结
+- 支持删除单条浏览记录、收藏/取消收藏
 - Popup 设置页支持上传开关与 API 基地址配置
 
 ## Installation（安装）
@@ -71,6 +76,15 @@ pnpm dev:ext
 <img width="387" height="602" alt="image" src="https://github.com/user-attachments/assets/18616572-ca2d-406e-a2ae-f2713b90c596" />
 <img width="370" height="590" alt="image" src="https://github.com/user-attachments/assets/95c147cd-54d8-4d89-876f-dcb30fa9c171" />
 
+## 近期新增功能
+
+- **系统设置页面**（`/settings`）：可自定义 4 条 AI 系统提示词（网页摘要、日总结、分组摘要、标签提取），以及域名标签映射表和技术关键词列表（覆盖内置缺省值）
+- **页面删除**：时间线/收藏页签中可单条移除浏览记录
+- **日总结重新生成**：每篇 Digest 卡片上的按钮，调用 AI 重新生成当前日期的摘要
+- **批量回填**：`POST /api/pages/backfill-summary` 批量回填空摘要页面 + 重新生成所有日总结
+- **收藏切换**：页面卡片星级收藏 / 取消收藏
+- **主题页签**：按话题筛选并聚合展示页面
+- **时间线左侧导航**：日期锚点快速跳转，当前日期高亮
 
 ## Contributing
 
