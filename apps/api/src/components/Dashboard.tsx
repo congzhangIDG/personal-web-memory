@@ -575,7 +575,12 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
               );
             })()}
             {digests.length > 0 ? (
-              digests.map((d) => (
+              digests.map((d) => {
+                // 统一使用 pageList 过滤出的当日页面，确保页面数统计一致
+                const dayPages = pageList.filter((p) => p.date === d.date);
+                const dayPageCount = dayPages.length;
+                const dayTotalDuration = dayPages.reduce((sum, p) => sum + p.durationMs, 0);
+                return (
                 <article key={d.id} className="rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-md space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white">{d.date} · {formatDate(d.date)}</h3>
@@ -588,9 +593,9 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                         {regenerating === d.date ? "生成中…" : "重新生成"}
                       </button>
                       <div className="flex gap-3 text-xs text-slate-400">
-                        <span>{d.pageCount} 页面</span>
+                        <span>{dayPageCount} 页面</span>
                         <span>·</span>
-                        <span>{formatDuration(d.totalDurationMs)}</span>
+                        <span>{formatDuration(dayTotalDuration)}</span>
                       </div>
                     </div>
                   </div>
@@ -607,7 +612,6 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                     </div>
                   )}
                   {d.topics.length > 0 && (() => {
-                    const dayPages = pageList.filter((p) => p.date === d.date);
                     const tagCounts: Record<string, number> = {};
                     dayPages.forEach((p) => p.topics.forEach((t) => { tagCounts[t] = (tagCounts[t] || 0) + 1; }));
                     return (
@@ -624,25 +628,21 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                       </div>
                     );
                   })()}
-                  {/* 该日页面列表 */}
-                  {(() => {
-                    const dayPages = pageList.filter((p) => p.date === d.date);
-                    if (dayPages.length === 0) return null;
-                    return (
-                      <details className="group">
-                        <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200 transition-colors select-none">
-                          查看当日 {dayPages.length} 个页面详情 ▾
-                        </summary>
-                        <div className="mt-3 space-y-3">
-                          {dayPages.map((page) => (
-                            <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} onDelete={handleDelete} />
-                          ))}
-                        </div>
-                      </details>
-                    );
-                  })()}
+                  {dayPages.length > 0 && (
+                    <details className="group">
+                      <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200 transition-colors select-none">
+                        查看当日 {dayPages.length} 个页面详情 ▾
+                      </summary>
+                      <div className="mt-3 space-y-3">
+                        {dayPages.map((page) => (
+                          <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} onDelete={handleDelete} />
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </article>
-              ))
+              );
+              })
             ) : (
               <div className="rounded-2xl border border-dashed border-white/20 bg-white/5 px-6 py-12 text-center text-white/50">
                 还没有每日总结。扩展会在每天结束时自动生成。
