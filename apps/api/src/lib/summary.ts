@@ -1,4 +1,5 @@
 import type { DomainStat } from "@pwm/shared";
+import { getAppSetting, SETTING_KEYS } from "@/lib/settings";
 
 type PageRef = {
   title: string;
@@ -61,6 +62,8 @@ async function summarizeChunk(
     })
     .join("\n\n");
 
+  const chunkSystemPrompt = await getAppSetting(SETTING_KEYS.digestChunkSystemPrompt);
+
   const prompt = [
     `以下是 ${date} 浏览记录的第 ${chunkIndex + 1}/${totalChunks} 组（共 ${pages.length} 个页面）。`,
     "",
@@ -81,7 +84,7 @@ async function summarizeChunk(
         model: modelId,
         temperature: 0.4,
         messages: [
-          { role: "system", content: "你是一个浏览记录分组整理助手。" },
+          { role: "system", content: digestSystemPrompt },
           { role: "user", content: prompt },
         ],
       }),
@@ -112,6 +115,8 @@ async function synthesizeFinalSummary(
   const chunksText = chunkSummaries
     .map((s, i) => `【第 ${i + 1} 组总结】\n${s}`)
     .join("\n\n");
+
+  const digestSystemPrompt = await getAppSetting(SETTING_KEYS.digestSummarySystemPrompt);
 
   const prompt = [
     `日期：${date}`,
@@ -236,6 +241,8 @@ async function summarizeAllAtOnce(
     "5）结构清晰：先用一句话概括当日焦点，再分层展开各个主题，最后简要总结。",
   ].join("\n\n");
 
+  const digestSystemPrompt = await getAppSetting(SETTING_KEYS.digestSummarySystemPrompt);
+
   try {
     const response = await fetch(`${apiBase}/chat/completions`, {
       method: "POST",
@@ -244,7 +251,7 @@ async function summarizeAllAtOnce(
         model: modelId,
         temperature: 0.4,
         messages: [
-          { role: "system", content: "你是一个个人知识工作流助手，负责把浏览统计整理成简洁可信的中文日总结。" },
+          { role: "system", content: digestSystemPrompt },
           { role: "user", content: prompt },
         ],
       }),
@@ -302,8 +309,7 @@ async function generateAiPageSummary(
         messages: [
           {
             role: "system",
-            content:
-              "你是一个客观的网页摘要助手。只根据提供的文本生成摘要，不添加任何外部知识或推断。",
+            content: await getAppSetting(SETTING_KEYS.pageSummarySystemPrompt),
           },
           { role: "user", content: prompt },
         ],

@@ -23,6 +23,12 @@ model DailyDigest {
   @@index([date])
 }
 
+model AppSetting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
+}
+
 model PageVisit {
   id          Int      @id @default(autoincrement())
   url         String

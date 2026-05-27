@@ -4,6 +4,10 @@
 // 策略：
 //   1. 优先使用 LLM 批量生成（当配置了 OPENAI_API_KEY 时）
 //   2. LLM 不可用时，使用规则匹配（域名映射 + 标题关键词）
+//
+// 域名映射表和技术关键词列表支持从 DB 配置覆盖（见 /settings 页面）。
+
+import { getAppSetting, SETTING_KEYS } from "@/lib/settings";
 
 const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY;
 const OPENAI_API_BASE = () => process.env.OPENAI_API_BASE;
@@ -90,14 +94,48 @@ const domainTagMap: Record<string, string[]> = {
   "googleapis.com":       ["Google", "API"],
 };
 
-function getDomainTags(domain: string): string[] {
+/** 从 DB 设置加载自定义域名映射表（合并到默认映射之上） */
+async function loadDomainTagOverrides(): Promise<Record<string, string[]> | null> {
+  const raw = await getAppSetting(SETTING_KEYS.domainTagMap);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && parsed !== null) {
+      const result: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (Array.isArray(v)) result[k] = v as string[];
+      }
+      return Object.keys(result).length > 0 ? result : null;
+    }
+  } catch { /* ignore invalid JSON */ }
+  return null;
+}
+
+/** 从 DB 设置加载自定义技术关键词列表（完全替代默认列表） */
+async function loadTechKeywordOverrides(): Promise<string[] | null> {
+  const raw = await getAppSetting(SETTING_KEYS.techKeywords);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map(String);
+    }
+  } catch { /* ignore invalid JSON */ }
+  return null;
+}
+
+function getDomainTags(domain: string, overrides?: Record<string, string[]>): string[] {
+  // 先查自定义映射
+  if (overrides?.[domain]) return [...overrides[domain]];
+  // 再查默认映射
   const exact = domainTagMap[domain];
   if (exact) return [...exact];
 
-  // 子域名匹配：先尝试 domain 本身，再逐级回退
+  // 子域名匹配：逐级回退
   const parts = domain.split(".");
   for (let i = 0; i < parts.length - 1; i++) {
     const candidate = parts.slice(i).join(".");
+    if (overrides?.[candidate]) return [...overrides[candidate]];
     if (domainTagMap[candidate]) return [...domainTagMap[candidate]];
   }
 
@@ -124,9 +162,10 @@ const techKeywords = [
   "微服务", "架构", "性能优化", "安全",
 ];
 
-function extractTitleTags(title: string): string[] {
+function extractTitleTags(title: string, keywordsOverride?: string[]): string[] {
+  const keywords = keywordsOverride ?? techKeywords;
   const found: string[] = [];
-  for (const kw of techKeywords) {
+  for (const kw of keywords) {
     if (title.includes(kw)) {
       found.push(kw);
     }
@@ -134,14 +173,14 @@ function extractTitleTags(title: string): string[] {
   return found;
 }
 
-function ruleBasedTopics(page: PageInput): string[] {
+function ruleBasedTopics(page: PageInput, options?: { domainOverrides?: Record<string, string[]>; keywordOverrides?: string[] }): string[] {
   const tags = new Set<string>();
 
   // 域名匹配
-  getDomainTags(page.domain).forEach((t) => tags.add(t));
+  getDomainTags(page.domain, options?.domainOverrides).forEach((t) => tags.add(t));
 
   // 标题关键词
-  extractTitleTags(page.title).forEach((t) => tags.add(t));
+  extractTitleTags(page.title, options?.keywordOverrides).forEach((t) => tags.add(t));
 
   // 从 URL 路径提取有意义的单词（英文/数字）
   try {
@@ -212,8 +251,7 @@ async function llmBatchTopics(
         messages: [
           {
             role: "system",
-            content:
-              "你是一个网页内容理解助手。根据网页标题和域名，判断文章的核心主题要义，生成精准、具体的中文话题标签。避免宽泛标签，要体现文章的具体内容方向。",
+            content: await getAppSetting(SETTING_KEYS.tagExtractionSystemPrompt),
           },
           { role: "user", content: prompt },
         ],
@@ -268,6 +306,13 @@ export async function generateTopicsForPages(
 ): Promise<Map<string, string[]>> {
   if (pages.length === 0) return new Map();
 
+  // 加载外部覆盖配置
+  const domainOverrides = await loadDomainTagOverrides();
+  const keywordOverrides = await loadTechKeywordOverrides();
+  const ruleOptions = (domainOverrides || keywordOverrides)
+    ? { domainOverrides: domainOverrides ?? undefined, keywordOverrides: keywordOverrides ?? undefined }
+    : undefined;
+
   const result = new Map<string, string[]>();
 
   // 1) 优先 LLM 批量生成
@@ -276,7 +321,7 @@ export async function generateTopicsForPages(
     if (llmResult) {
       for (const p of pages) {
         const topics = llmResult[p.url];
-        result.set(p.url, topics?.slice(0, 5) ?? ruleBasedTopics(p));
+        result.set(p.url, topics?.slice(0, 5) ?? ruleBasedTopics(p, ruleOptions));
       }
       return result;
     }
@@ -284,7 +329,7 @@ export async function generateTopicsForPages(
 
   // 2) 回退到规则匹配
   for (const p of pages) {
-    result.set(p.url, ruleBasedTopics(p));
+    result.set(p.url, ruleBasedTopics(p, ruleOptions));
   }
 
   return result;

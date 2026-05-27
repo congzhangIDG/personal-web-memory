@@ -32,3 +32,17 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true, page: updated });
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const numId = Number(id);
+  if (Number.isNaN(numId)) {
+    return NextResponse.json({ error: "invalid id" }, { status: 400 });
+  }
+
+  await prisma.pageVisit.delete({ where: { id: numId } });
+  return NextResponse.json({ ok: true });
+}

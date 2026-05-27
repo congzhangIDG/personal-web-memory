@@ -73,7 +73,7 @@ function renderMarkdownLinks(text: string) {
 
 const SUMMARY_TRUNCATE = 250;
 
-function PageCard({ page, onToggleFavorite, onTopicClick }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void }) {
+function PageCard({ page, onToggleFavorite, onTopicClick, onDelete }: { page: PageItem; onToggleFavorite: (id: number) => void; onTopicClick?: (topic: string) => void; onDelete?: (id: number) => void }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
   const summary = page.summary || "";
   const needsTruncation = summary.length > SUMMARY_TRUNCATE;
@@ -138,6 +138,15 @@ function PageCard({ page, onToggleFavorite, onTopicClick }: { page: PageItem; on
         >
           {page.favorited ? "⭐" : "☆"}
         </button>
+        {onDelete && (
+          <button
+            onClick={() => onDelete(page.id)}
+            className="shrink-0 rounded-lg p-1.5 text-sm text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition-all"
+            title="移除"
+          >
+            ✕
+          </button>
+        )}
       </div>
     </article>
   );
@@ -156,6 +165,37 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
   const handleTopicClick = (topic: string) => {
     setActiveTopic(topic);
     setTab("topics");
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("确定移除这条记录？")) return;
+    const res = await fetch(`/api/pages/${id}`, { method: "DELETE" });
+    if (!res.ok) return;
+    setPageList((prev) => prev.filter((p) => p.id !== id));
+    setFavList((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const [regenerating, setRegenerating] = useState<string | null>(null);
+
+  const handleRegenerate = async (date: string) => {
+    setRegenerating(date);
+    try {
+      const res = await fetch("/api/digest/regenerate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        const err = await res.json();
+        alert(err.error || "重新生成失败");
+      }
+    } catch {
+      alert("重新生成失败");
+    } finally {
+      setRegenerating(null);
+    }
   };
 
   // ─── 数据计算（hooks 顺序：state → ref → useMemo → useEffect）───
@@ -197,10 +237,10 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
   }, [paginatedPages]);
 
   const sectionIds = useMemo(() => {
-    if (tab === "timeline") return Object.keys(paginatedGrouped).map((d) => `date-${d}`);
+    if (tab === "timeline") return Object.keys(groupedByDate).map((d) => `date-${d}`);
     if (tab === "topics") return sortedTopics.map(([t]) => `topic-${t}`);
     return [];
-  }, [tab, paginatedGrouped, sortedTopics]);
+  }, [tab, groupedByDate, sortedTopics]);
 
   // ─── Effects ───
 
@@ -301,6 +341,9 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
               </button>
             ))}
           </nav>
+          <a href="/settings" className="ml-auto text-sm text-white/40 hover:text-white transition-colors">
+            ⚙️
+          </a>
         </div>
       </header>
 
@@ -347,11 +390,11 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                 <div className="mb-4 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-blue-500" />
                   <h3 className="text-lg font-semibold text-white">{date} · {formatDate(date)}</h3>
-                  <span className="text-xs text-slate-400">{datePages.length} 条记录</span>
+                  <span className="text-xs text-slate-400">{groupedByDate[date]?.length ?? datePages.length} 条记录</span>
                 </div>
                 <div className="ml-1.5 border-l-2 border-white/10 pl-6 space-y-3">
                     {datePages.map((page) => (
-                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
+                      <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} onDelete={handleDelete} />
                     ))}
                 </div>
               </section>
@@ -420,10 +463,19 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                 <article key={d.id} className="rounded-2xl border border-white/10 bg-white/6 p-6 backdrop-blur-md space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-white">{d.date} · {formatDate(d.date)}</h3>
-                    <div className="flex gap-3 text-xs text-slate-400">
-                      <span>{d.pageCount} 页面</span>
-                      <span>·</span>
-                      <span>{formatDuration(d.totalDurationMs)}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleRegenerate(d.date)}
+                        disabled={regenerating === d.date}
+                        className="rounded-lg bg-white/8 px-3 py-1 text-xs text-white/60 hover:text-white hover:bg-white/15 transition disabled:opacity-40"
+                      >
+                        {regenerating === d.date ? "生成中…" : "重新生成"}
+                      </button>
+                      <div className="flex gap-3 text-xs text-slate-400">
+                        <span>{d.pageCount} 页面</span>
+                        <span>·</span>
+                        <span>{formatDuration(d.totalDurationMs)}</span>
+                      </div>
                     </div>
                   </div>
                   <div className="text-sm leading-7 text-slate-300 whitespace-pre-wrap">
@@ -458,7 +510,7 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
                         </summary>
                         <div className="mt-3 space-y-3">
                           {dayPages.map((page) => (
-                            <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} />
+                            <PageCard key={page.id} page={page} onToggleFavorite={toggleFavorite} onTopicClick={handleTopicClick} onDelete={handleDelete} />
                           ))}
                         </div>
                       </details>
