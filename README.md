@@ -53,8 +53,14 @@ pnpm dev:api
 
 4. 启动扩展开发
 
+本地开发调试
 ```bash
 pnpm dev:ext
+```
+
+本地打包(通过浏览器扩展加载插件)
+```bash
+pnpm build:ext
 ```
 
 5. 在浏览器加载 WXT 输出的扩展，开始浏览并等待 alarm 聚合上传
