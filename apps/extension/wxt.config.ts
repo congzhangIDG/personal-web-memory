@@ -6,5 +6,6 @@ export default defineConfig({
   manifest: {
     permissions: ['tabs', 'alarms'],
     host_permissions: ['http://*/*', 'https://*/*'],
+    action: {},
   },
 });
