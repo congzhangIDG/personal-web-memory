@@ -3,6 +3,7 @@
 
 import { db } from "./db";
 import { isBlacklisted } from "./patterns";
+import { DEFAULT_BLACKLIST } from "./defaults";
 import type { PageRecord } from "@pwm/shared";
 
 /** 内存中正在追踪的 tab 状态 */
@@ -55,8 +56,8 @@ export async function startTracking(
   if (!domain) return;
 
   const settings = await db.settings.get("singleton");
-  const blacklist = settings?.blacklist;
-  if (blacklist && blacklist.length > 0 && isBlacklisted(url, blacklist)) return;
+  const blacklist = settings?.blacklist ?? DEFAULT_BLACKLIST;
+  if (blacklist.length > 0 && isBlacklisted(url, blacklist)) return;
 
   const record: Omit<PageRecord, "id"> = {
     url,

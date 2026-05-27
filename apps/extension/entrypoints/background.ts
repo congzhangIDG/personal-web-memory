@@ -6,7 +6,6 @@ import {
   flushAll,
   isTracked,
   updateTitle,
-  getActiveRecordIds,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
 import { uploadDigest } from "@/src/lib/uploader";
@@ -35,8 +34,7 @@ async function syncCurrentActiveTab() {
 
 async function generateAndUploadDigest(dateStr: string) {
   await flushAll();
-  const excludeIds = getActiveRecordIds();
-  const digest = await buildDailyDigest(dateStr, excludeIds);
+  const digest = await buildDailyDigest(dateStr);
   if (!digest) {
     return {
       ok: false,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { db } from "@/src/lib/db";
+import { DEFAULT_BLACKLIST } from "@/src/lib/defaults";
 import type { Settings } from "@pwm/shared";
 
 type Tab = "home" | "blacklist" | "prefs" | "about";
@@ -12,8 +13,6 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 type FormState = Omit<Settings, "id">;
-
-const DEFAULT_BLACKLIST = ["localhost", "127.0.0.1", "*127.0.0.1*"];
 
 const defaultForm: FormState = {
   enabled: true,

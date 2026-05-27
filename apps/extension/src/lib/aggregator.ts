@@ -3,6 +3,7 @@
 
 import { db } from "./db";
 import { isBlacklisted } from "./patterns";
+import { DEFAULT_BLACKLIST } from "./defaults";
 import type { DailyDigest, DomainStat } from "@pwm/shared";
 
 /**
@@ -23,7 +24,6 @@ function dateRange(dateStr: string): { start: number; end: number } {
  */
 export async function buildDailyDigest(
   dateStr: string,
-  excludeIds?: number[],
 ): Promise<DailyDigest | null> {
   const { start, end } = dateRange(dateStr);
 
@@ -32,17 +32,12 @@ export async function buildDailyDigest(
     .between(start, end, true, false)
     .toArray();
 
-  if (excludeIds && excludeIds.length > 0) {
-    const idSet = new Set(excludeIds);
-    pages = pages.filter((p) => !idSet.has(p.id!));
-  }
-
   if (pages.length === 0) return null;
 
   // 黑名单过滤（双重保险：已入库的旧数据也会被过滤）
   const settings = await db.settings.get("singleton");
-  const blacklist = settings?.blacklist;
-  if (blacklist && blacklist.length > 0) {
+  const blacklist = settings?.blacklist ?? DEFAULT_BLACKLIST;
+  if (blacklist.length > 0) {
     const filtered = pages.filter((p) => !isBlacklisted(p.url, blacklist));
     if (filtered.length === 0) return null;
     pages.length = 0;
