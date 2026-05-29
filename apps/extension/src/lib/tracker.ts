@@ -138,6 +138,26 @@ export async function flushAll(): Promise<void> {
   }
 }
 
+/**
+ * 清理 Dexie 中所有匹配当前黑名单的 PageRecord。
+ * 黑名单变更后调用，清除已产生的脏数据。
+ */
+export async function cleanupBlacklistedPages(): Promise<number> {
+  const settings = await db.settings.get("singleton");
+  const blacklist = settings?.blacklist ?? DEFAULT_BLACKLIST;
+  if (blacklist.length === 0) return 0;
+
+  const all = await db.pages.toArray();
+  const toDelete = all.filter((p) => isBlacklisted(p.url, blacklist));
+  const ids = toDelete.map((p) => p.id!).filter(Boolean);
+
+  if (ids.length > 0) {
+    await db.pages.where("id").anyOf(ids).delete();
+  }
+
+  return ids.length;
+}
+
 /** 检查某 tab 是否已在追踪中 */
 export function isTracked(tabId: number): boolean {
   return tracked.has(tabId);

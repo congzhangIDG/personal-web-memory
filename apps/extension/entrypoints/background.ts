@@ -6,6 +6,7 @@ import {
   flushAll,
   isTracked,
   updateTitle,
+  cleanupBlacklistedPages,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
 import { uploadDigest } from "@/src/lib/uploader";
@@ -121,6 +122,11 @@ export default defineBackground(() => {
 
   void syncCurrentActiveTab();
 
+  // 启动时清理黑名单遗留记录
+  cleanupBlacklistedPages().then((n) => {
+    if (n > 0) console.log(`[PWM] Cleaned up ${n} blacklisted pages on startup`);
+  });
+
   // --- 定时上传（alarms API，按用户配置间隔）---
   const ALARM_NAME = "pwm-periodic-upload";
   const DEFAULT_INTERVAL_MIN = 5;
@@ -199,6 +205,9 @@ export default defineBackground(() => {
 
     if (message?.type === "pwm:settings-updated") {
       void setupAlarm();
+      cleanupBlacklistedPages().then((n) => {
+        if (n > 0) console.log(`[PWM] Cleaned up ${n} blacklisted pages after settings update`);
+      });
       return Promise.resolve({ ok: true });
     }
 
