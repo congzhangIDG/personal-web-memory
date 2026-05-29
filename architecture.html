@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Web Memory 架构图</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: #020617;
+      min-height: 100vh;
+      padding: 2rem;
+      color: white;
+    }
+    .container { max-width: 1500px; margin: 0 auto; }
+    .header { margin-bottom: 2rem; }
+    .header-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    .pulse-dot {
+      width: 12px; height: 12px;
+      background: #22d3ee;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.875rem; margin-left: 1.75rem; }
+    .diagram-container {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 1rem;
+      border: 1px solid #1e293b;
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+    svg { width: 100%; min-width: 1100px; display: block; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 0.75rem;
+      border: 1px solid #1e293b;
+      padding: 1.25rem;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .card-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .card-dot.cyan { background: #22d3ee; }
+    .card-dot.emerald { background: #34d399; }
+    .card-dot.violet { background: #a78bfa; }
+    .card-dot.amber { background: #fbbf24; }
+    .card-dot.rose { background: #fb7185; }
+    .card h3 { font-size: 0.875rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.75rem; }
+    .card li { margin-bottom: 0.375rem; }
+    .footer {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #475569;
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-row">
+        <div class="pulse-dot"></div>
+        <h1>Personal Web Memory 系统架构</h1>
+      </div>
+      <p class="subtitle">Chrome 扩展 + Next.js 服务端 · 左—右数据流：本地采集 → HTTP 上传 → 服务端处理与存储</p>
+    </div>
+
+    <div class="diagram-container">
+      <svg viewBox="0 0 1440 980">
+        <defs>
+          <!-- Arrowheads -->
+          <marker id="arrow-cyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee"/>
+          </marker>
+          <marker id="arrow-emerald" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#34d399"/>
+          </marker>
+          <marker id="arrow-amber" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#fbbf24"/>
+          </marker>
+          <marker id="arrow-violet" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/>
+          </marker>
+          <marker id="arrow-sky" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8"/>
+          </marker>
+          <marker id="arrow-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="#64748b"/>
+          </marker>
+
+          <!-- Background grid -->
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+
+          <!-- Glow filter -->
+          <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+
+        <!-- Background Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)"/>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             ZONE 1: 浏览器扩展端 (LEFT)
+             ════════════════════════════════════════════════════════════════ -->
+        <rect x="20" y="40" width="540" height="760" rx="12" fill="rgba(8, 51, 68, 0.08)" stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="36" y="60" fill="#22d3ee" font-size="11" font-weight="700">浏览器扩展端 (Chrome Extension · WXT + React)</text>
+        <text x="36" y="76" fill="#5eead4" font-size="9">本地采集层：注入页面、追踪 Tab、提取页面文本、本地持久化、聚合上传</text>
+
+        <!-- 1.1 Content Script -->
+        <rect x="60" y="95" width="460" height="60" rx="8" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="80" y="118" fill="white" font-size="12" font-weight="600">📄 Content Script</text>
+        <text x="80" y="136" fill="#94a3b8" font-size="9">注入所有页面 · 提取 DOM innerText · runtime.sendMessage → Background</text>
+        <text x="420" y="136" fill="#22d3ee" font-size="8">matches: *://*/*</text>
+
+        <!-- 1.2 Background Script -->
+        <rect x="60" y="195" width="460" height="115" rx="8" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="80" y="218" fill="white" font-size="12" font-weight="600">⚙️ Background Script (Service Worker)</text>
+        <!-- Sub-items -->
+        <rect x="80" y="230" width="200" height="28" rx="4" fill="rgba(34, 211, 238, 0.08)" stroke="rgba(34, 211, 238, 0.3)" stroke-width="1"/>
+        <text x="88" y="248" fill="#5eead4" font-size="9">🕒 Tab Tracker (Map&lt;tabId, TrackedTab&gt;)</text>
+
+        <rect x="290" y="230" width="210" height="28" rx="4" fill="rgba(34, 211, 238, 0.08)" stroke="rgba(34, 211, 238, 0.3)" stroke-width="1"/>
+        <text x="298" y="248" fill="#5eead4" font-size="9">🔌 Message Router (6 message types)</text>
+
+        <rect x="80" y="266" width="420" height="28" rx="4" fill="rgba(34, 211, 238, 0.08)" stroke="rgba(34, 211, 238, 0.3)" stroke-width="1"/>
+        <text x="88" y="284" fill="#5eead4" font-size="9">⏰ Alarm (periodic upload · 可配置间隔，默认 5 min)</text>
+
+        <!-- Arrow: Content Script → Background -->
+        <line x1="290" y1="155" x2="290" y2="190" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="305" y="175" fill="#64748b" font-size="8">runtime.sendMessage</text>
+
+        <!-- 1.3 Dexie IndexedDB -->
+        <rect x="60" y="355" width="460" height="115" rx="8" fill="rgba(76, 29, 149, 0.15)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="80" y="378" fill="white" font-size="12" font-weight="600">🗄️ Dexie IndexedDB (Local)</text>
+        <text x="80" y="396" fill="#94a3b8" font-size="9">5 核 Chromium 限制 · 离线可用 · 隐私隔离</text>
+
+        <rect x="80" y="412" width="130" height="40" rx="4" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="145" y="430" fill="white" font-size="9" text-anchor="middle" font-weight="600">📋 pages</text>
+        <text x="145" y="444" fill="#94a3b8" font-size="8" text-anchor="middle">PageRecord[]</text>
+
+        <rect x="225" y="412" width="130" height="40" rx="4" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="290" y="430" fill="white" font-size="9" text-anchor="middle" font-weight="600">📝 digests</text>
+        <text x="290" y="444" fill="#94a3b8" font-size="8" text-anchor="middle">DailyDigest[]</text>
+
+        <rect x="370" y="412" width="130" height="40" rx="4" fill="rgba(76, 29, 149, 0.2)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="435" y="430" fill="white" font-size="9" text-anchor="middle" font-weight="600">⚙️ settings</text>
+        <text x="435" y="444" fill="#94a3b8" font-size="8" text-anchor="middle">Singleton</text>
+
+        <!-- Arrow: Background → Dexie -->
+        <line x1="290" y1="310" x2="290" y2="350" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <text x="305" y="332" fill="#64748b" font-size="8">db.pages.add/update</text>
+
+        <!-- 1.4 Aggregator -->
+        <rect x="60" y="515" width="220" height="60" rx="8" fill="rgba(45, 212, 191, 0.15)" stroke="#2dd4bf" stroke-width="1.5"/>
+        <text x="80" y="538" fill="white" font-size="12" font-weight="600">📊 Aggregator</text>
+        <text x="80" y="556" fill="#94a3b8" font-size="9">buildDailyDigest(dateStr)</text>
+        <text x="80" y="570" fill="#94a3b8" font-size="8">domain 聚合 · 黑名单过滤</text>
+
+        <!-- 1.5 Uploader -->
+        <rect x="300" y="515" width="220" height="60" rx="8" fill="rgba(45, 212, 191, 0.15)" stroke="#2dd4bf" stroke-width="1.5"/>
+        <text x="320" y="538" fill="white" font-size="12" font-weight="600">📤 Uploader</text>
+        <text x="320" y="556" fill="#94a3b8" font-size="9">POST /api/digest</text>
+        <text x="320" y="570" fill="#94a3b8" font-size="8">更新 lastUploadedDate</text>
+
+        <!-- Arrow: Aggregator → Uploader -->
+        <line x1="280" y1="545" x2="295" y2="545" stroke="#2dd4bf" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <!-- Arrow: Dexie → Aggregator (read) -->
+        <path d="M 200 470 L 200 500 L 170 500 L 170 510" fill="none" stroke="#2dd4bf" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <text x="130" y="498" fill="#64748b" font-size="8">db.pages.where()</text>
+
+        <!-- 1.6 Options Page -->
+        <rect x="60" y="620" width="460" height="50" rx="8" fill="rgba(34, 211, 238, 0.06)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="80" y="643" fill="white" font-size="11" font-weight="600">⚙️ Options 配置页 (React)</text>
+        <text x="320" y="643" fill="#94a3b8" font-size="9">API 基地址 · 上传开关 · 黑名单 · 计时设置</text>
+
+        <!-- Arrow: Options ←→ Background -->
+        <line x1="290" y1="620" x2="290" y2="660" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow-cyan)"/>
+        <text x="305" y="642" fill="#64748b" font-size="8">message passing</text>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             CENTER: 共享契约 + HTTP
+             ════════════════════════════════════════════════════════════════ -->
+
+        <!-- Shared Schema Badge -->
+        <rect x="580" y="355" width="80" height="115" rx="8" fill="rgba(251, 191, 36, 0.06)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+        <text x="620" y="390" fill="#fbbf24" font-size="8" text-anchor="middle" font-weight="600">@pwm/shared</text>
+        <text x="620" y="405" fill="#94a3b8" font-size="7" text-anchor="middle">Zod Schema</text>
+        <text x="620" y="418" fill="#94a3b8" font-size="7" text-anchor="middle">PageRecord</text>
+        <text x="620" y="431" fill="#94a3b8" font-size="7" text-anchor="middle">DailyDigest</text>
+        <text x="620" y="444" fill="#94a3b8" font-size="7" text-anchor="middle">Settings</text>
+        <text x="620" y="457" fill="#94a3b8" font-size="7" text-anchor="middle">API Schema</text>
+
+        <!-- HTTP Arrow: Uploader → Server -->
+        <line x1="520" y1="545" x2="690" y2="545" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-amber)" filter="url(#glow-cyan)"/>
+        <text x="575" y="535" fill="#fbbf24" font-size="10" font-weight="600" text-anchor="middle">HTTP POST /api/digest</text>
+        <text x="575" y="560" fill="#64748b" font-size="8" text-anchor="middle">localhost:3000</text>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             ZONE 2: 服务端 (RIGHT)
+             ════════════════════════════════════════════════════════════════ -->
+        <rect x="680" y="40" width="740" height="760" rx="12" fill="rgba(6, 78, 59, 0.08)" stroke="#34d399" stroke-width="1.5" stroke-dasharray="8,4"/>
+        <text x="696" y="60" fill="#34d399" font-size="11" font-weight="700">服务端 (Next.js 16 + Prisma 7 + SQLite)</text>
+        <text x="696" y="76" fill="#5eead4" font-size="9">服务端处理层：API 接收、AI 摘要补全、主题标签、SQLite 持久化、Dashboard 展示</text>
+
+        <!-- 2.1 Dashboard UI -->
+        <rect x="720" y="95" width="660" height="60" rx="8" fill="rgba(34, 211, 238, 0.06)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="740" y="118" fill="white" font-size="12" font-weight="600">📈 Dashboard UI (React Server Components)</text>
+        <text x="740" y="136" fill="#94a3b8" font-size="9">首页 Timeline · 主题页签 Topics · 收藏页签 Favorites · 设置页 Settings</text>
+        <text x="740" y="150" fill="#22d3ee" font-size="8">直接读 Prisma（不绕内部 HTTP）</text>
+
+        <!-- Dashed arrow: Dashboard → Prisma (direct read) -->
+        <line x1="900" y1="155" x2="900" y2="498" stroke="#22d3ee" stroke-width="1" stroke-dasharray="6,4" marker-end="url(#arrow-sky)"/>
+        <text x="915" y="330" fill="#38bdf8" font-size="8">直接 DB 查询</text>
+
+        <!-- 2.2 API Routes -->
+        <rect x="720" y="200" width="660" height="115" rx="8" fill="rgba(6, 78, 59, 0.3)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="740" y="223" fill="white" font-size="12" font-weight="600">🌐 Next.js API Routes</text>
+
+        <rect x="740" y="235" width="200" height="28" rx="4" fill="rgba(52, 211, 153, 0.08)" stroke="rgba(52, 211, 153, 0.3)" stroke-width="1"/>
+        <text x="748" y="253" fill="#5eead4" font-size="9">📥 POST /api/digest</text>
+
+        <rect x="955" y="235" width="200" height="28" rx="4" fill="rgba(52, 211, 153, 0.08)" stroke="rgba(52, 211, 153, 0.3)" stroke-width="1"/>
+        <text x="963" y="253" fill="#5eead4" font-size="9">📋 GET /api/digest</text>
+
+        <rect x="740" y="271" width="200" height="28" rx="4" fill="rgba(52, 211, 153, 0.08)" stroke="rgba(52, 211, 153, 0.3)" stroke-width="1"/>
+        <text x="748" y="289" fill="#5eead4" font-size="9">🔄 PATCH/DEL /api/pages/[id]</text>
+
+        <rect x="955" y="271" width="200" height="28" rx="4" fill="rgba(52, 211, 153, 0.08)" stroke="rgba(52, 211, 153, 0.3)" stroke-width="1"/>
+        <text x="963" y="289" fill="#5eead4" font-size="9">⭐ PATCH /favorite</text>
+
+        <rect x="1175" y="235" width="185" height="64" rx="4" fill="rgba(52, 211, 153, 0.08)" stroke="rgba(52, 211, 153, 0.3)" stroke-width="1"/>
+        <text x="1183" y="253" fill="#5eead4" font-size="9">🛠️ 其他路由</text>
+        <text x="1183" y="270" fill="#94a3b8" font-size="8">POST /api/digest/regenerate</text>
+        <text x="1183" y="284" fill="#94a3b8" font-size="8">POST /api/pages/backfill-summary</text>
+        <text x="1183" y="298" fill="#94a3b8" font-size="8">GET/PUT /api/settings</text>
+
+        <!-- Arrow: HTTP → Digest Route -->
+        <line x1="690" y1="545" x2="720" y2="545" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-amber)"/>
+
+        <!-- Arrow: incoming HTTP to API Routes -->
+        <path d="M 690 545 L 700 545 L 700 257 L 718 257" fill="none" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrow-amber)"/>
+
+        <!-- 2.3 AI Services -->
+        <rect x="720" y="360" width="660" height="90" rx="8" fill="rgba(99, 102, 241, 0.08)" stroke="#818cf8" stroke-width="1.5"/>
+        <text x="740" y="383" fill="white" font-size="12" font-weight="600">🧠 AI Services</text>
+
+        <rect x="740" y="395" width="200" height="40" rx="4" fill="rgba(99, 102, 241, 0.08)" stroke="rgba(129, 140, 248, 0.3)" stroke-width="1"/>
+        <text x="840" y="412" fill="white" font-size="9" text-anchor="middle">📝 Summary Service</text>
+        <text x="840" y="428" fill="#94a3b8" font-size="8" text-anchor="middle">LLM → rule fallback</text>
+
+        <rect x="955" y="395" width="200" height="40" rx="4" fill="rgba(99, 102, 241, 0.08)" stroke="rgba(129, 140, 248, 0.3)" stroke-width="1"/>
+        <text x="1055" y="412" fill="white" font-size="9" text-anchor="middle">🏷️ Topic Service</text>
+        <text x="1055" y="428" fill="#94a3b8" font-size="8" text-anchor="middle">LLM → domain mapping</text>
+
+        <rect x="1175" y="395" width="185" height="40" rx="4" fill="rgba(99, 102, 241, 0.08)" stroke="rgba(129, 140, 248, 0.3)" stroke-width="1"/>
+        <text x="1268" y="412" fill="white" font-size="9" text-anchor="middle">⚙️ Settings Service</text>
+        <text x="1268" y="428" fill="#94a3b8" font-size="8" text-anchor="middle">1-min 内存缓存</text>
+
+        <!-- Arrow: API Routes → AI Services -->
+        <line x1="900" y1="315" x2="900" y2="355" stroke="#818cf8" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <text x="915" y="338" fill="#64748b" font-size="8">AI enrichment</text>
+
+        <!-- 2.4 Prisma ORM -->
+        <rect x="740" y="495" width="660" height="40" rx="8" fill="rgba(251, 191, 36, 0.06)" stroke="#fbbf24" stroke-width="1.5"/>
+        <text x="760" y="518" fill="white" font-size="12" font-weight="600">🔗 Prisma ORM</text>
+        <text x="1100" y="518" fill="#94a3b8" font-size="9">@prisma/adapter-better-sqlite3</text>
+
+        <!-- Arrow: AI Services → Prisma -->
+        <line x1="900" y1="450" x2="900" y2="490" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrow-amber)"/>
+        <text x="915" y="473" fill="#64748b" font-size="8">更新 summaries/topics</text>
+
+        <!-- 2.5 SQLite Database -->
+        <rect x="720" y="580" width="660" height="130" rx="8" fill="rgba(76, 29, 149, 0.12)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="740" y="603" fill="white" font-size="12" font-weight="600">🗄️ SQLite Database (本地文件)</text>
+        <text x="740" y="620" fill="#94a3b8" font-size="9">prisma/dev.db · 零配置 · 数据全在本地</text>
+
+        <rect x="740" y="635" width="200" height="55" rx="4" fill="rgba(76, 29, 149, 0.15)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="840" y="655" fill="white" font-size="10" text-anchor="middle" font-weight="600">📅 DailyDigest</text>
+        <text x="840" y="672" fill="#94a3b8" font-size="8" text-anchor="middle">date, summary, pageCount,</text>
+        <text x="840" y="686" fill="#94a3b8" font-size="8" text-anchor="middle">totalDurationMs, topDomains(JSON)</text>
+
+        <rect x="955" y="635" width="200" height="55" rx="4" fill="rgba(76, 29, 149, 0.15)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="1055" y="655" fill="white" font-size="10" text-anchor="middle" font-weight="600">📋 PageVisit</text>
+        <text x="1055" y="672" fill="#94a3b8" font-size="8" text-anchor="middle">url, title, domain, durationMs</text>
+        <text x="1055" y="686" fill="#94a3b8" font-size="8" text-anchor="middle">summary, topics(JSON), favorited</text>
+
+        <rect x="1175" y="635" width="185" height="55" rx="4" fill="rgba(76, 29, 149, 0.15)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="1267" y="655" fill="white" font-size="10" text-anchor="middle" font-weight="600">⚙️ AppSetting</text>
+        <text x="1267" y="672" fill="#94a3b8" font-size="8" text-anchor="middle">key–value 键值对</text>
+        <text x="1267" y="686" fill="#94a3b8" font-size="8" text-anchor="middle">AI 提示词 · 域名标签映射</text>
+
+        <!-- Arrow: Prisma → SQLite -->
+        <line x1="900" y1="535" x2="900" y2="575" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arrow-violet)"/>
+        <text x="915" y="558" fill="#64748b" font-size="8">prisma.dailyDigest/pageVisit/appSetting</text>
+
+        <!-- 2.6 Content File Storage -->
+        <rect x="720" y="745" width="660" height="45" rx="8" fill="rgba(251, 191, 36, 0.06)" stroke="#fbbf24" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="740" y="768" fill="white" font-size="11" font-weight="600">📁 Content File Storage (本地文件系统)</text>
+        <text x="1000" y="768" fill="#94a3b8" font-size="9">content/{date}/{id}.txt · 页面渲染文本缓存</text>
+
+        <!-- Arrow: API → Content Files -->
+        <path d="M 1200 315 Q 1270 350 1270 400 Q 1270 730 1270 740" fill="none" stroke="#fbbf24" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arrow-amber)"/>
+        <text x="1285" y="540" fill="#64748b" font-size="8">fs.writeFileSync</text>
+
+        <!-- ════════════════════════════════════════════════════════════════
+             LEGEND (右下角)
+             ════════════════════════════════════════════════════════════════ -->
+        <rect x="1060" y="810" width="340" height="150" rx="8" fill="rgba(15, 23, 42, 0.8)" stroke="#1e293b" stroke-width="1"/>
+        <text x="1080" y="832" fill="white" font-size="10" font-weight="600">图例</text>
+
+        <rect x="1080" y="845" width="16" height="10" rx="2" fill="rgba(8, 51, 68, 0.5)" stroke="#22d3ee" stroke-width="1"/>
+        <text x="1102" y="853" fill="#94a3b8" font-size="8">前端组件 (扩展/Dashboard)</text>
+
+        <rect x="1080" y="861" width="16" height="10" rx="2" fill="rgba(6, 78, 59, 0.5)" stroke="#34d399" stroke-width="1"/>
+        <text x="1102" y="869" fill="#94a3b8" font-size="8">后端组件 (API/Service)</text>
+
+        <rect x="1080" y="877" width="16" height="10" rx="2" fill="rgba(76, 29, 149, 0.3)" stroke="#a78bfa" stroke-width="1"/>
+        <text x="1102" y="885" fill="#94a3b8" font-size="8">数据库 / 本地存储</text>
+
+        <rect x="1080" y="893" width="16" height="10" rx="2" fill="rgba(99, 102, 241, 0.15)" stroke="#818cf8" stroke-width="1"/>
+        <text x="1102" y="901" fill="#94a3b8" font-size="8">AI 服务</text>
+
+        <rect x="1080" y="909" width="16" height="10" rx="2" fill="rgba(251, 191, 36, 0.1)" stroke="#fbbf24" stroke-width="1"/>
+        <text x="1102" y="917" fill="#94a3b8" font-size="8">共享 / 配置 / 文件</text>
+
+        <line x1="1080" y1="931" x2="1096" y2="931" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="1102" y="935" fill="#94a3b8" font-size="8">数据 / 消息流</text>
+
+        <line x1="1080" y1="943" x2="1096" y2="943" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="1102" y="947" fill="#94a3b8" font-size="8">直接 DB 查询 / 文件写入</text>
+
+        <!-- Footer text within SVG -->
+        <text x="720" y="970" fill="#475569" font-size="9">Personal Web Memory · Chrome Extension + Next.js 16 + Prisma 7 + SQLite · 2025</text>
+      </svg>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>📦 本地采集层 (Extension)</h3>
+        </div>
+        <ul>
+          <li>• 内容脚本提取 DOM innerText，减少服务端请求</li>
+          <li>• Background 事件驱动计时：活跃/失焦/关闭全场景覆盖</li>
+          <li>• Dexie IndexedDB 本地持久化，纯离线可用</li>
+          <li>• Alarm 定时聚合上传（默认每 5 分钟）</li>
+          <li>• Options 配置页：API 地址、上传开关、黑名单</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>🌐 服务端处理层 (Next.js + Prisma)</h3>
+        </div>
+        <ul>
+          <li>• 接收 DailyDigest，upsert 策略防重复叠加</li>
+          <li>• 页面文本持久化到 content/{date}/{id}.txt</li>
+          <li>• AI 摘要：LLM（OpenAI 兼容）→ 规则兜底，失败不报错</li>
+          <li>• 主题标签：LLM 批量生成 → 域名映射表 + 标题关键词</li>
+          <li>• 系统设置 1 分钟内存缓存，修改后自动失效</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>📊 数据流概览</h3>
+        </div>
+        <ul>
+          <li>• 扩展端：Content → Background → Dexie → Aggregator → Uploader</li>
+          <li>• 网络：HTTP POST /api/digest（仅上传聚合摘要）</li>
+          <li>• 服务端：API → 落库 + 写文件 → AI 补全 → 更新 DB</li>
+          <li>• Dashboard：直接读 Prisma（不绕内部 HTTP）</li>
+          <li>• 共享契约 @pwm/shared：Zod Schema 前后端统一</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="footer">
+      Personal Web Memory · 2025 · 系统概览 · MIT License
+    </p>
+  </div>
+</body>
+</html>

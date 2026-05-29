@@ -7,6 +7,10 @@ import {
   type UploadDigestResponse,
   type GetDigestsResponse,
 } from "@pwm/shared";
+import fs from "node:fs";
+import path from "node:path";
+
+const CONTENT_ROOT = path.resolve(process.cwd(), "content");
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +37,7 @@ export async function POST(req: NextRequest) {
     summary: string;
     topics: string[];
     favorited: boolean;
+    textContent?: string;
   }>();
 
   if (pages && pages.length > 0) {
@@ -43,6 +48,7 @@ export async function POST(req: NextRequest) {
         if (p.visitedAt > existing.visitedAt) {
           existing.visitedAt = p.visitedAt;
           existing.title = p.title;
+          if (p.textContent) existing.textContent = p.textContent;
         }
       } else {
         urlMap.set(p.url, {
@@ -54,6 +60,7 @@ export async function POST(req: NextRequest) {
           summary: p.summary ?? "",
           topics: p.topics ?? [],
           favorited: false,
+          textContent: p.textContent,
         });
       }
     }
@@ -81,7 +88,7 @@ export async function POST(req: NextRequest) {
   });
 
   for (const p of dedupedPages) {
-    await prisma.pageVisit.upsert({
+    const record = await prisma.pageVisit.upsert({
       where: { url_date: { url: p.url, date } },
       create: {
         url: p.url,
@@ -100,6 +107,13 @@ export async function POST(req: NextRequest) {
         durationMs: p.durationMs,
       },
     });
+
+    // 持久化扩展端提取的页面文本内容
+    if (p.textContent) {
+      const dir = path.join(CONTENT_ROOT, date);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, `${record.id}.txt`), p.textContent, "utf-8");
+    }
   }
 
   // ── 3. AI 补全（失败不影响已入库数据）──
@@ -111,10 +125,10 @@ export async function POST(req: NextRequest) {
         )
       : new Map<string, string[]>();
 
-    // 3b. 生成页面摘要
+    // 3b. 生成页面摘要（优先使用扩展端提取的渲染文本）
     for (const p of dedupedPages) {
       if (!p.summary?.trim()) {
-        const pageSummary = await generatePageSummary(p.url, p.title);
+        const pageSummary = await generatePageSummary(p.url, p.title, p.textContent);
         if (pageSummary) p.summary = pageSummary;
       }
     }

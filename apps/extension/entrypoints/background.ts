@@ -155,7 +155,21 @@ export default defineBackground(() => {
     console.log("[PWM] Periodic upload result", dateStr, result);
   });
 
-  browser.runtime.onMessage.addListener((message) => {
+  browser.runtime.onMessage.addListener((message, sender) => {
+    // 接收 content script 提取的页面文本内容
+    if (message?.type === "pwm:page-content") {
+      return (async () => {
+        const tabId = sender.tab?.id;
+        if (tabId != null && isTracked(tabId) && message.content) {
+          const state = tracked.get(tabId);
+          if (state) {
+            await db.pages.update(state.recordId, { textContent: message.content });
+          }
+        }
+        return { ok: true };
+      })();
+    }
+
     if (message?.type === "pwm:generate-today-digest") {
       return (async () => {
         try {

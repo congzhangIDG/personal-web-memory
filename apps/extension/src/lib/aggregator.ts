@@ -78,13 +78,14 @@ export async function buildDailyDigest(
   // upsert
   await db.digests.put(digest);
 
-  // 按 URL 去重：同一 URL 累计时长，取最后访问时间和最新标题
+  // 按 URL 去重：同一 URL 累计时长，取最后访问时间和最新标题/内容
   const urlMap = new Map<string, {
     url: string;
     title: string;
     domain: string;
     visitedAt: number;
     durationMs: number;
+    textContent?: string;
   }>();
 
   for (const p of pages) {
@@ -94,6 +95,8 @@ export async function buildDailyDigest(
       if (p.visitedAt > existing.visitedAt) {
         existing.visitedAt = p.visitedAt;
         existing.title = p.title;
+        // 取最新一次访问的文本内容
+        if (p.textContent) existing.textContent = p.textContent;
       }
     } else {
       urlMap.set(p.url, {
@@ -102,6 +105,7 @@ export async function buildDailyDigest(
         domain: p.domain,
         visitedAt: p.visitedAt,
         durationMs: p.durationMs ?? 0,
+        textContent: p.textContent,
       });
     }
   }

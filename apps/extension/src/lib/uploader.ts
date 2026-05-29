@@ -49,7 +49,7 @@ export async function uploadDigest(digest: DailyDigest): Promise<UploadResult> {
     const data = (await res.json()) as UploadDigestResponse;
     if (data.ok) {
       await db.settings.update("singleton", {
-        lastUploadedDate: digest.date,
+        lastUploadedDate: new Date().toISOString(),
       });
       return { ok: true, pagesUpserted: data.pagesUpserted };
     }

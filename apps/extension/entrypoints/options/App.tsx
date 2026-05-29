@@ -160,8 +160,9 @@ function App() {
       );
 
       // Step 4: 更新本地状态
-      await db.settings.update("singleton", { lastUploadedDate: today });
-      setForm((c) => ({ ...c, lastUploadedDate: today }));
+      const nowISO = new Date().toISOString();
+      await db.settings.update("singleton", { lastUploadedDate: nowISO });
+      setForm((c) => ({ ...c, lastUploadedDate: nowISO }));
       setStatus("今日工作记忆已生成并上传");
       appendLog("本地上传时间已更新", "success");
     } catch (error) {
@@ -339,7 +340,19 @@ function App() {
                 </div>
                 <div className="statCard">
                   <div className="statLabel">最近上传</div>
-                  <div className="statValue">{form.lastUploadedDate ?? "-"}</div>
+                  <div className="statValue">
+                    {form.lastUploadedDate
+                      ? new Date(form.lastUploadedDate).toLocaleString("zh-CN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                          hour12: false,
+                        })
+                      : "-"}
+                  </div>
                 </div>
               </div>
             </section>

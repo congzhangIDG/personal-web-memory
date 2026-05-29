@@ -27,6 +27,8 @@ export const pageRecordSchema = z.object({
   /** 活跃时长（ms），离开页面前未结算时为 undefined */
   durationMs: z.number().int().nonnegative().optional(),
   favicon: z.string().optional(),
+  /** 页面渲染后的文本内容（由 content script 提取，用于 AI 摘要生成） */
+  textContent: z.string().optional(),
 });
 export type PageRecord = z.infer<typeof pageRecordSchema>;
 
@@ -54,6 +56,7 @@ export const pageVisitSchema = z.object({
   topics: z.array(z.string()).default([]),
   favorited: z.boolean().default(false),
   date: dateStringSchema,
+  textContent: z.string().optional(),
 });
 export type PageVisit = z.infer<typeof pageVisitSchema>;
 
@@ -89,8 +92,8 @@ export const settingsSchema = z.object({
   apiBaseUrl: z.string().url().optional(),
   /** 是否启用上报 */
   enabled: z.boolean().default(true),
-  /** 上次成功上传的日期（YYYY-MM-DD） */
-  lastUploadedDate: dateStringSchema.optional(),
+  /** 上次成功上传的时间（ISO 8601） */
+  lastUploadedDate: z.string().optional(),
 
   // ---- 黑名单 ----
   // blacklist: 域名或 URL 通配符模式列表

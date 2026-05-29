@@ -320,41 +320,47 @@ async function generateAiPageSummary(
 
 /**
  * 为单个页面生成事实摘要。
- * 1) 尝试抓取页面 HTML、提取正文、调用 LLM 摘要（≤1000字）
- * 2) LLM 不可用时直接截取前 1000 字
- * 3) 完全无法获取内容时返回 null
+ * 1) 优先使用传入的 textContent（由扩展端 content script 提取的渲染后文本）
+ * 2) 无 textContent 时尝试抓取页面 HTML、提取正文
+ * 3) 调用 LLM 摘要（≤1000字），LLM 不可用时直接截取
  */
 export async function generatePageSummary(
   url: string,
   title: string,
+  textContent?: string,
 ): Promise<string | null> {
-  let html: string;
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (compatible; PWM-SummaryBot/1.0; +https://github.com/your-repo)",
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) return null;
-    html = await response.text();
-  } catch {
-    return null;
+  let excerpt: string;
+
+  if (textContent && textContent.length >= 30) {
+    excerpt = textContent.slice(0, 3000);
+  } else {
+    // 回退：服务端主动抓取
+    let html: string;
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; PWM-SummaryBot/1.0; +https://github.com/your-repo)",
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return null;
+      html = await response.text();
+    } catch {
+      return null;
+    }
+
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&[a-z]+;/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (text.length < 30) return null;
+    excerpt = text.slice(0, 3000);
   }
-
-  // 移除 script/style 标签及内容，再剥离 HTML 标签
-  const text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&[a-z]+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (text.length < 30) return null;
-
-  const excerpt = text.slice(0, 3000);
 
   const llmSummary = await generateAiPageSummary(title, excerpt);
   if (llmSummary) return llmSummary;
