@@ -8,9 +8,13 @@
 import Dexie, { type Table } from "dexie";
 import type { DailyDigest, PageRecord, Settings } from "@pwm/shared";
 
+export interface LocalPageRecord extends PageRecord {
+  uploaded?: 0 | 1;
+}
+
 export class PwmDB extends Dexie {
   // 表声明
-  pages!: Table<PageRecord, number>;
+  pages!: Table<LocalPageRecord, number>;
   digests!: Table<DailyDigest, string>;
   settings!: Table<Settings, string>;
 
@@ -26,6 +30,10 @@ export class PwmDB extends Dexie {
       settings: "id",
     });
     this.version(2).stores({});
+    // v3：为 pages 增加 uploaded 索引，支持增量上传（只发未上传页面的 textContent）
+    this.version(3).stores({
+      pages: "++id, visitedAt, domain, uploaded",
+    });
   }
 }
 

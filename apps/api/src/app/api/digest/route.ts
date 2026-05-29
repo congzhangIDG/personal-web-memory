@@ -118,16 +118,32 @@ export async function POST(req: NextRequest) {
 
   // ── 3. AI 补全（失败不影响已入库数据）──
   try {
-    // 3a. 生成主题标签
+    // 查询已存在的页面摘要/主题，避免重复 AI 调用
+    const existingPages = dedupedPages.length > 0
+      ? await prisma.pageVisit.findMany({
+          where: { date, url: { in: dedupedPages.map((p) => p.url) } },
+          select: { url: true, summary: true },
+        })
+      : [];
+    const existingSummaryMap = new Map(
+      existingPages.map((p) => [p.url, p.summary]),
+    );
+
+    // 3a. 生成主题标签（只对尚无 topic 的页面）
     const topicMap = dedupedPages.length > 0
       ? await generateTopicsForPages(
-          dedupedPages.map((p) => ({ url: p.url, title: p.title, domain: p.domain })),
+          dedupedPages
+            .filter((p) => !existingSummaryMap.get(p.url)?.trim())
+            .map((p) => ({ url: p.url, title: p.title, domain: p.domain })),
         )
       : new Map<string, string[]>();
 
-    // 3b. 生成页面摘要（优先使用扩展端提取的渲染文本）
+    // 3b. 生成页面摘要（只对无摘要且本次有 textContent 的页面）
     for (const p of dedupedPages) {
-      if (!p.summary?.trim()) {
+      const existingSummary = existingSummaryMap.get(p.url);
+      if (existingSummary?.trim()) {
+        p.summary = existingSummary;
+      } else if (!p.summary?.trim() && p.textContent) {
         const pageSummary = await generatePageSummary(p.url, p.title, p.textContent);
         if (pageSummary) p.summary = pageSummary;
       }

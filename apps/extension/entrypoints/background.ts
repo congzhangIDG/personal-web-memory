@@ -34,8 +34,8 @@ async function syncCurrentActiveTab() {
 
 async function generateAndUploadDigest(dateStr: string) {
   await flushAll();
-  const digest = await buildDailyDigest(dateStr);
-  if (!digest) {
+  const result = await buildDailyDigest(dateStr);
+  if (!result) {
     return {
       ok: false,
       reason: "no_data",
@@ -43,13 +43,13 @@ async function generateAndUploadDigest(dateStr: string) {
     };
   }
 
-  const uploaded = await uploadDigest(digest);
+  const uploaded = await uploadDigest(result.digest, result.pageIds);
   if (!uploaded.ok) {
     return {
       ok: false,
       reason: "upload_failed",
       message: uploaded.message ?? "摘要已生成，但上传失败，请检查 API 地址与服务状态",
-      date: digest.date,
+      date: result.digest.date,
     };
   }
 
@@ -57,7 +57,7 @@ async function generateAndUploadDigest(dateStr: string) {
     ok: true,
     reason: "uploaded",
     message: "工作记忆已生成并上传成功",
-    date: digest.date,
+    date: result.digest.date,
   };
 }
 

@@ -5,6 +5,12 @@ import { db } from "./db";
 import { isBlacklisted } from "./patterns";
 import { DEFAULT_BLACKLIST } from "./defaults";
 import type { DailyDigest, DomainStat } from "@pwm/shared";
+import type { LocalPageRecord } from "./db";
+
+export interface BuildDigestResult {
+  digest: DailyDigest;
+  pageIds: number[];
+}
 
 /**
  * 将 YYYY-MM-DD 转为当天 00:00:00 和次日 00:00:00 的毫秒 epoch（本地时区）
@@ -24,17 +30,16 @@ function dateRange(dateStr: string): { start: number; end: number } {
  */
 export async function buildDailyDigest(
   dateStr: string,
-): Promise<DailyDigest | null> {
+): Promise<BuildDigestResult | null> {
   const { start, end } = dateRange(dateStr);
 
-  let pages = await db.pages
+  let pages: LocalPageRecord[] = await db.pages
     .where("visitedAt")
     .between(start, end, true, false)
     .toArray();
 
   if (pages.length === 0) return null;
 
-  // 黑名单过滤（双重保险：已入库的旧数据也会被过滤）
   const settings = await db.settings.get("singleton");
   const blacklist = settings?.blacklist ?? DEFAULT_BLACKLIST;
   if (blacklist.length > 0) {
@@ -44,7 +49,8 @@ export async function buildDailyDigest(
     pages.push(...filtered);
   }
 
-  // 按 domain 聚合
+  const pageIds = pages.map((p) => p.id!).filter(Boolean);
+
   const domainMap = new Map<string, { count: number; durationMs: number }>();
   let totalDurationMs = 0;
 
@@ -61,7 +67,6 @@ export async function buildDailyDigest(
     }
   }
 
-  // topDomains：按 durationMs 降序，取前 10
   const topDomains: DomainStat[] = [...domainMap.entries()]
     .map(([domain, stat]) => ({ domain, ...stat }))
     .sort((a, b) => b.durationMs - a.durationMs)
@@ -69,16 +74,14 @@ export async function buildDailyDigest(
 
   const digest: DailyDigest = {
     date: dateStr,
-    summary: "", // 后续可由 LLM 填充
+    summary: "",
     pageCount: pages.length,
     totalDurationMs,
     topDomains,
   };
 
-  // upsert
   await db.digests.put(digest);
 
-  // 按 URL 去重：同一 URL 累计时长，取最后访问时间和最新标题/内容
   const urlMap = new Map<string, {
     url: string;
     title: string;
@@ -86,17 +89,19 @@ export async function buildDailyDigest(
     visitedAt: number;
     durationMs: number;
     textContent?: string;
+    hasNewContent: boolean;
   }>();
 
   for (const p of pages) {
+    const isNew = p.uploaded !== 1;
     const existing = urlMap.get(p.url);
     if (existing) {
       existing.durationMs += p.durationMs ?? 0;
+      if (isNew) existing.hasNewContent = true;
       if (p.visitedAt > existing.visitedAt) {
         existing.visitedAt = p.visitedAt;
         existing.title = p.title;
-        // 取最新一次访问的文本内容
-        if (p.textContent) existing.textContent = p.textContent;
+        if (p.textContent && isNew) existing.textContent = p.textContent;
       }
     } else {
       urlMap.set(p.url, {
@@ -105,19 +110,20 @@ export async function buildDailyDigest(
         domain: p.domain,
         visitedAt: p.visitedAt,
         durationMs: p.durationMs ?? 0,
-        textContent: p.textContent,
+        textContent: isNew ? p.textContent : undefined,
+        hasNewContent: isNew,
       });
     }
   }
 
-  const pagesPayload = [...urlMap.values()].map((p) => ({
+  const pagesPayload = [...urlMap.values()].map(({ hasNewContent: _, ...p }) => ({
     ...p,
     summary: "",
     topics: [] as string[],
     favorited: false,
   }));
 
-  return { ...digest, pages: pagesPayload };
+  return { digest: { ...digest, pages: pagesPayload }, pageIds };
 }
 
 /**

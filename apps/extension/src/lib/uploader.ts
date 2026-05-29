@@ -1,4 +1,3 @@
-// 将 DailyDigest 上传到后端 API
 import { db } from "./db";
 import type { DailyDigest, UploadDigestResponse } from "@pwm/shared";
 
@@ -20,10 +19,10 @@ export interface UploadResult {
   pagesUpserted?: number;
 }
 
-/**
- * 上传一份 DailyDigest 到后端，成功后更新 lastUploadedDate。
- */
-export async function uploadDigest(digest: DailyDigest): Promise<UploadResult> {
+export async function uploadDigest(
+  digest: DailyDigest,
+  pageIds?: number[],
+): Promise<UploadResult> {
   const settings = await getSettings();
   if (settings?.enabled === false) {
     console.log("[PWM] Upload skipped because auto upload is disabled");
@@ -51,6 +50,11 @@ export async function uploadDigest(digest: DailyDigest): Promise<UploadResult> {
       await db.settings.update("singleton", {
         lastUploadedDate: new Date().toISOString(),
       });
+
+      if (pageIds && pageIds.length > 0) {
+        await db.pages.where("id").anyOf(pageIds).modify({ uploaded: 1 });
+      }
+
       return { ok: true, pagesUpserted: data.pagesUpserted };
     }
     return { ok: false, message: data.message ?? "服务端返回失败" };

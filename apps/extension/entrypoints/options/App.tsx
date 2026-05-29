@@ -135,12 +135,13 @@ function App() {
 
       // Step 2: 本地聚合
       appendLog(`正在聚合 ${today} 的本地浏览记录...`);
-      const digest = await buildDailyDigest(today);
-      if (!digest) {
+      const result = await buildDailyDigest(today);
+      if (!result) {
         appendLog("今日无可上传的浏览记录", "error");
         setStatus("今日无浏览记录");
         return;
       }
+      const { digest, pageIds } = result;
       appendLog(
         `聚合完成：${digest.pages.length} 个页面，${digest.topDomains.length} 个域名`,
         "success",
@@ -148,14 +149,14 @@ function App() {
 
       // Step 3: 上传到服务器
       appendLog(`正在上传到 ${form.apiBaseUrl || "默认地址"}...`);
-      const result = await uploadDigest(digest);
-      if (!result.ok) {
-        appendLog(`上传失败: ${result.message}`, "error");
-        setStatus(result.message ?? "上传失败");
+      const uploadResult = await uploadDigest(digest, pageIds);
+      if (!uploadResult.ok) {
+        appendLog(`上传失败: ${uploadResult.message}`, "error");
+        setStatus(uploadResult.message ?? "上传失败");
         return;
       }
       appendLog(
-        `上传成功！服务端已接收 ${result.pagesUpserted ?? digest.pages.length} 条记录`,
+        `上传成功！服务端已接收 ${uploadResult.pagesUpserted ?? digest.pages.length} 条记录`,
         "success",
       );
 
