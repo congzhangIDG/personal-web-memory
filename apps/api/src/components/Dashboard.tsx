@@ -358,16 +358,41 @@ export default function Dashboard({ digests, pages, favorites }: Props) {
   const activeNavRef = useRef<string | null>(null);
   const navClickTimeRef = useRef(0);
 
+  const pendingScrollRef = useRef<string | null>(null);
+
   const scrollToSection = (id: string) => {
     activeNavRef.current = id;
     setActiveNav(id);
     navClickTimeRef.current = Date.now();
+
     const el = document.getElementById(id);
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - 80;
       window.scrollTo({ top, behavior: "smooth" });
+    } else if (tab === "timeline") {
+      const targetDate = id.replace("date-", "");
+      const lastIdx = pageList.findLastIndex((p) => p.date === targetDate);
+      if (lastIdx >= 0) {
+        const requiredPage = Math.ceil((lastIdx + 1) / timelinePageSize);
+        setTimelinePage(requiredPage);
+        pendingScrollRef.current = id;
+      }
     }
   };
+
+  useEffect(() => {
+    if (pendingScrollRef.current) {
+      const id = pendingScrollRef.current;
+      pendingScrollRef.current = null;
+      requestAnimationFrame(() => {
+        const el = document.getElementById(id);
+        if (el) {
+          const top = el.getBoundingClientRect().top + window.scrollY - 80;
+          window.scrollTo({ top, behavior: "smooth" });
+        }
+      });
+    }
+  }, [timelinePage]);
 
   useEffect(() => {
     if (sectionIds.length === 0) return;
