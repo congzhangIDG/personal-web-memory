@@ -6,6 +6,7 @@ import {
   flushAll,
   isTracked,
   updateTitle,
+  updateTextContent,
   cleanupBlacklistedPages,
 } from "@/src/lib/tracker";
 import { buildDailyDigest, getYesterdayDateStr } from "@/src/lib/aggregator";
@@ -167,10 +168,7 @@ export default defineBackground(() => {
       return (async () => {
         const tabId = sender.tab?.id;
         if (tabId != null && isTracked(tabId) && message.content) {
-          const state = tracked.get(tabId);
-          if (state) {
-            await db.pages.update(state.recordId, { textContent: message.content });
-          }
+          await updateTextContent(tabId, message.content);
         }
         return { ok: true };
       })();

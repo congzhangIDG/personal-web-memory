@@ -176,3 +176,13 @@ export async function updateTitle(tabId: number, newTitle: string): Promise<void
   if (!state || !newTitle) return;
   await db.pages.update(state.recordId, { title: newTitle });
 }
+
+/**
+ * 保存 content script 提取的页面文本内容到 Dexie
+ * 供 background.ts 的 pwm:page-content 消息处理用
+ */
+export async function updateTextContent(tabId: number, textContent: string): Promise<void> {
+  const state = tracked.get(tabId);
+  if (!state) return;
+  await db.pages.update(state.recordId, { textContent });
+}
